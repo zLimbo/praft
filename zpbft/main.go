@@ -32,9 +32,8 @@ func main() {
 	} else {
 		Info("start server...")
 		runtime.GOMAXPROCS(KConfig.GoMaxProcs)
-		nodeId := GetId(KConfig.LocalIp, KConfig.PortBase + processIdx)
+		nodeId := GetId(KConfig.LocalIp, KConfig.PortBase+processIdx)
 
 		RunServer(nodeId, delayRange)
 	}
 }
-

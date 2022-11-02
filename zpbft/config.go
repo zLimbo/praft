@@ -108,7 +108,7 @@ func InitConfig(processId int) {
 			KConfig.IsProposer = true
 		}
 		Debug("proposer id = %d", KConfig.ProposerIds[i])
-		Debug("local mode is proposer : %d", KConfig.IsProposer)
+		Debug("local mode is proposer : v", KConfig.IsProposer)
 	}
 	Debug("Duplicate mode = %d", KConfig.DuplicateMode)
 
