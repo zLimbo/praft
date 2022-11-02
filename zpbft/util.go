@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"math"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -32,24 +33,29 @@ func Bytes2I(data []byte, len int) int64 {
 }
 
 func GetLocalIp() string {
-	ipBytes, err := ioutil.ReadFile(KLocalIpFile)
-	if err == nil {
-		ip := strings.TrimSpace(string(ipBytes))
-		return ip
-	}
-
-	tcpConn, err := net.Dial("udp", "8.8.8.8:53")
-	if err != nil {
-		Error("err: %v", err)
-	}
-	localAddr := tcpConn.LocalAddr().(*net.UDPAddr)
-	ip := strings.Split(localAddr.String(), ":")[0]
-
-	err = ioutil.WriteFile(KLocalIpFile, []byte(ip), 0644)
-	if err != nil {
-		Error("err: %v", err)
+	ip := os.Getenv("myip")
+	if ip == "" {
+		Error("can't find ip from env")
 	}
 	return ip
+	// ipBytes, err := ioutil.ReadFile(KLocalIpFile)
+	// if err == nil {
+	// 	ip := strings.TrimSpace(string(ipBytes))
+	// 	return ip
+	// }
+
+	// tcpConn, err := net.Dial("udp", "8.8.8.8:53")
+	// if err != nil {
+	// 	Error("err: %v", err)
+	// }
+	// localAddr := tcpConn.LocalAddr().(*net.UDPAddr)
+	// ip := strings.Split(localAddr.String(), ":")[0]
+
+	// err = ioutil.WriteFile(KLocalIpFile, []byte(ip), 0644)
+	// if err != nil {
+	// 	Error("err: %v", err)
+	// }
+	// return ip
 }
 
 func ReadIps(path string) []string {

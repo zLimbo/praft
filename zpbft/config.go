@@ -6,9 +6,9 @@ import (
 	"io/ioutil"
 	"log"
 	"math/rand"
+	"praft/consistent"
 	"strconv"
 	"time"
-	"praft/consistent"
 )
 
 var strByte = []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
@@ -23,40 +23,40 @@ const (
 )
 
 type Config struct {
-	PeerIps      []string `json:"PeerIps"`
-	ClientIp     string   `json:"ClientIp"`
-	IpNum        int      `json:"IpNum"`
-	PortBase     int      `json:"PortBase"`
-	ProcessNum   int      `json:"ProcessNum"`
-	ReqNum       int      `json:"ReqNum"`
-	BoostNum     int      `json:"BoostNum"`
-	StartDelay   int      `json:"StartDelay"`
-	RecvBufSize  int      `json:"RecvBufSize"`
-	LogStdout    bool     `json:"LogStdout"`
-	LogLevel     LogLevel `json:"LogLevel"`
-	GoMaxProcs   int      `json:"GoMaxProcs"`
-	BatchTxNum   int      `json:"BatchTxNum"`
-	TxSize       int      `json:"TxSize"`
-	GossipNum    int      `json:"GossipNum"`
-	EnableGossip bool     `json:"EnableGossip"`
-	ExecNum      int      `json:"ExecNum"`
-	ProposerNum  int      `json:"ProposerNum"`
-	Load         int      `json:"Load"`
-	Delay        int      `json:"Delay"`
-	Delays       []int    `json:"Delays"`
-	RotateOrNot  bool     `json:"RotateOrNot"`
-	RandomDelayOrNot  bool     `json:"RandomDelayOrNot"`
-	ProcessNumArray   []int    `json:"ProcessNumArray"`
-	DuplicateMode int     `json:"DuplicateMode"`
+	PeerIps          []string `json:"PeerIps"`
+	ClientIp         string   `json:"ClientIp"`
+	IpNum            int      `json:"IpNum"`
+	PortBase         int      `json:"PortBase"`
+	ProcessNum       int      `json:"ProcessNum"`
+	ReqNum           int      `json:"ReqNum"`
+	BoostNum         int      `json:"BoostNum"`
+	StartDelay       int      `json:"StartDelay"`
+	RecvBufSize      int      `json:"RecvBufSize"`
+	LogStdout        bool     `json:"LogStdout"`
+	LogLevel         LogLevel `json:"LogLevel"`
+	GoMaxProcs       int      `json:"GoMaxProcs"`
+	BatchTxNum       int      `json:"BatchTxNum"`
+	TxSize           int      `json:"TxSize"`
+	GossipNum        int      `json:"GossipNum"`
+	EnableGossip     bool     `json:"EnableGossip"`
+	ExecNum          int      `json:"ExecNum"`
+	ProposerNum      int      `json:"ProposerNum"`
+	Load             int      `json:"Load"`
+	Delay            int      `json:"Delay"`
+	Delays           []int    `json:"Delays"`
+	RotateOrNot      bool     `json:"RotateOrNot"`
+	RandomDelayOrNot bool     `json:"RandomDelayOrNot"`
+	ProcessNumArray  []int    `json:"ProcessNumArray"`
+	DuplicateMode    int      `json:"DuplicateMode"`
 
-	Id2Node    map[int64]*Node
-	ClientNode *Node
-	PeerIds    []int64
-	LocalIp    string
-	FaultNum  int
-	RouteMap   map[int64][]int64
+	Id2Node     map[int64]*Node
+	ClientNode  *Node
+	PeerIds     []int64
+	LocalIp     string
+	FaultNum    int
+	RouteMap    map[int64][]int64
 	ProposerIds []int64
-	IsProposer bool
+	IsProposer  bool
 }
 
 var KConfig Config
@@ -78,7 +78,7 @@ func InitConfig(processId int) {
 	KConfig.PeerIps = KConfig.PeerIps[:KConfig.IpNum]
 	KConfig.Id2Node = make(map[int64]*Node)
 	for j := 0; j < len(KConfig.PeerIps); j++ {
-		for i := 0; i < KConfig.ProcessNumArray[j];i++ {
+		for i := 0; i < KConfig.ProcessNumArray[j]; i++ {
 			port := KConfig.PortBase + 1 + i
 			id := GetId(KConfig.PeerIps[j], port)
 			keyDir := KCertsDir + "/" + fmt.Sprint(id)
@@ -99,15 +99,15 @@ func InitConfig(processId int) {
 	//}
 	KConfig.LocalIp = GetLocalIp()
 	//设置Proposer，peerIps前KConfig.ProposerNum个是Proposer
-    KConfig.ProposerIds = make([]int64,KConfig.ProposerNum)
-    KConfig.IsProposer = false
+	KConfig.ProposerIds = make([]int64, KConfig.ProposerNum)
+	KConfig.IsProposer = false
 	for i := 0; i < KConfig.ProposerNum; i++ {
 		KConfig.ProposerIds[i] = KConfig.PeerIds[i]
 		//KConfig.ProposerIds[i] = GetId(KConfig.PeerIps[i % len(KConfig.PeerIps)], KConfig.PortBase+ i / len(KConfig.PeerIps)+1)
-		if KConfig.ProposerIds[i] == GetId(KConfig.LocalIp, KConfig.PortBase+processId){
+		if KConfig.ProposerIds[i] == GetId(KConfig.LocalIp, KConfig.PortBase+processId) {
 			KConfig.IsProposer = true
 		}
-		Debug("proposer id = %d",KConfig.ProposerIds[i])
+		Debug("proposer id = %d", KConfig.ProposerIds[i])
 		Debug("local mode is proposer : %d", KConfig.IsProposer)
 	}
 	Debug("Duplicate mode = %d", KConfig.DuplicateMode)
@@ -157,12 +157,11 @@ func RandString(length int) []byte {
 	return bytes
 }
 
-
 func ExampleNew(virtualNodeNum int, itemNum int) {
 	c := consistent.New()
-	for i := 0; i < virtualNodeNum * 7;i++{
+	for i := 0; i < virtualNodeNum*7; i++ {
 		//fmt.Print("cache"+strconv.FormatInt(int64(i),10))
-		c.Add("cache"+strconv.FormatInt(int64(i),10))
+		c.Add("cache" + strconv.FormatInt(int64(i), 10))
 	}
 
 	var cacheANum int
@@ -183,26 +182,24 @@ func ExampleNew(virtualNodeNum int, itemNum int) {
 			log.Fatal(err)
 		}
 
-		num,err := strconv.Atoi(server[5:])
+		num, err := strconv.Atoi(server[5:])
 		//Debug("%s", server)
 		//Debug("%d", num)
-		if num % 7 ==1{
+		if num%7 == 1 {
 			cacheANum++
-		}else if num % 7 == 2{
+		} else if num%7 == 2 {
 			cacheBNum++
-		}else if num % 7 == 3{
+		} else if num%7 == 3 {
 			cacheCNum++
-		}else if num % 7 == 4{
+		} else if num%7 == 4 {
 			cacheDNum++
-		}else if num % 7 == 5{
+		} else if num%7 == 5 {
 			cacheENum++
-		}else if num % 7 == 6{
+		} else if num%7 == 6 {
 			cacheFNum++
-		}else if num % 7 == 0{
+		} else if num%7 == 0 {
 			cacheGNum++
 		}
-
-
 
 		//if server == "cacheA" || server == "cacheH" || server == "cacheO" || server == "cacheV" || server == "cacheAC" || server == "cacheAJ" || server == "cacheAQ"|| server == "cacheAX"|| server == "cacheBE"|| server == "cacheBL"|| server == "cacheBS"|| server == "cacheCA"|| server == "cacheCH"|| server == "cacheCO"|| server == "cacheCV"|| server == "cacheDC"|| server == "cacheDJ"|| server == "cacheDQ"|| server == "cacheEA"|| server == "cacheEH"|| server == "cacheEO"|| server == "cacheFA"|| server == "cacheFH"|| server == "cacheFO"|| server == "cacheGA"|| server == "cacheGH"|| server == "cacheGO"|| server == "cacheHA"|| server == "cacheHH"|| server == "cacheHO"|| server == "cacheIA"|| server == "cacheIH"|| server == "cacheIO"|| server == "cacheJA"|| server == "cacheJH"|| server == "cacheJO"|| server == "cacheKA"|| server == "cacheKH"|| server == "cacheKO"|| server == "cacheLA"|| server == "cacheLH"|| server == "cacheLO"|| server == "cacheMA"|| server == "cacheMH"|| server == "cacheMO"|| server == "cacheNA"|| server == "cacheNH"|| server == "cacheNO"|| server == "cacheOA"|| server == "cacheOH"{
 		//	cacheANum++
@@ -226,7 +223,7 @@ func ExampleNew(virtualNodeNum int, itemNum int) {
 		//	cacheGNum++
 		//}
 	}
-	Debug("%d %d %d %d %d %d %d", cacheANum,cacheBNum,cacheCNum,cacheDNum,cacheENum,cacheFNum,cacheGNum)
+	Debug("%d %d %d %d %d %d %d", cacheANum, cacheBNum, cacheCNum, cacheDNum, cacheENum, cacheFNum, cacheGNum)
 	//users := []string{"user_mcnulty", "user_bunk", "user_omar", "user_bunny", "user_stringer","user_mcnulty1", "user_bunk2", "user_omar3", "user_bunny4", "user_stringer5"}
 	//	fmt.Printf("%s => %s\n", u, server)
 
