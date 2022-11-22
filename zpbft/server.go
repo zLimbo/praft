@@ -698,7 +698,7 @@ func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) err
 		//Debug("Block [%d] has committed and committed req number = %d", commitBlockLog.blockIndex, len(commitBlockLog.duplicatedReqs))
 	}
 
-	if commitBlockLog.prepared && commitBlockLog.committed {
+	if ok && commitBlockLog.prepared && commitBlockLog.committed {
 		s.execCh <- commitBlockLog.blockIndex
 	}
 
