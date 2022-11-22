@@ -129,9 +129,9 @@ func IsClient() bool {
 }
 
 func GetNode(id int64) *Node {
-	if id == KConfig.ClientNode.id {
-		return KConfig.ClientNode
-	}
+	// if id == KConfig.ClientNode.id {
+	// 	return KConfig.ClientNode
+	// }
 	node, ok := KConfig.Id2Node[id]
 	if !ok {
 		Error("The node of this ID(%d) does not exist!", id)
