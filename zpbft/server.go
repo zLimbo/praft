@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/rpc"
 	"praft/ycsb"
+	"praft/zlog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1152,6 +1153,7 @@ func (s *Server) execute() {
 	curExecHeight := int64(0)
 	aheadSet := make(map[int64]struct{})
 	for height := range s.execCh {
+		Debug("recv height: %d", height)
 		if height < curExecHeight {
 			Warn("height(%d) < curExecHeight(%d), old msg", height, curExecHeight)
 			continue
@@ -1176,6 +1178,7 @@ func (s *Server) execute() {
 				txSet := reqArgs.Req.TxSet
 				ycsb.ExecTxSet(txSet)
 			}
+			zlog.Info("Exec heigh: %d", curExecHeight)
 			curExecHeight++
 		}
 	}
