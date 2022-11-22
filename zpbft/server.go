@@ -13,94 +13,94 @@ import (
 )
 
 type Server struct {
-	node      *Node
-	seqCh     chan int64
-	logs      []*Log
-	seq2cert  map[int64]*LogCert
-	id2srvCli map[int64]*rpc.Client
-	id2cliCli map[int64]*rpc.Client
-	mu        sync.Mutex
-	txPoolMu        sync.Mutex
-	eachInstanceViewLocallyMutex        sync.Mutex
-	localNodeSendingTxsMutex        sync.Mutex
-	tpsMutex sync.Mutex
-	viewEndTimeMu sync.Mutex
-	seqInc    int64
-	view      int64
-	eachInstanceViewLocally map[int64]int64
-	currentView int64
-	viewCommittedInstance map[int64]int64 //
-	localViewCommitted LocalView
-	randomDelay int64
-	startTime time.Time
-	endTime time.Time
-	proposers []int64
-	isProposer bool
-	txPool int64
-	localNodeSendingTxs int64
-	currentConfirmedTx int64
-	delay int64
-	cumulative int64
-	tps []float64
-	roundEndTime []time.Time
-	latencyPerRound []float64
-	viewEndTime []time.Time
-	viewStartTime []time.Time
-	latencyPerView []float64
-	delayPerView []int64
-	sysStartToViewStart []float64
-	sysStartToViewEnd []float64
-	rotateOrNot bool
-	randomDelayOrNot bool
+	node                         *Node
+	seqCh                        chan int64
+	logs                         []*Log
+	seq2cert                     map[int64]*LogCert
+	id2srvCli                    map[int64]*rpc.Client
+	id2cliCli                    map[int64]*rpc.Client
+	mu                           sync.Mutex
+	txPoolMu                     sync.Mutex
+	eachInstanceViewLocallyMutex sync.Mutex
+	localNodeSendingTxsMutex     sync.Mutex
+	tpsMutex                     sync.Mutex
+	viewEndTimeMu                sync.Mutex
+	seqInc                       int64
+	view                         int64
+	eachInstanceViewLocally      map[int64]int64
+	currentView                  int64
+	viewCommittedInstance        map[int64]int64 //
+	localViewCommitted           LocalView
+	randomDelay                  int64
+	startTime                    time.Time
+	endTime                      time.Time
+	proposers                    []int64
+	isProposer                   bool
+	txPool                       int64
+	localNodeSendingTxs          int64
+	currentConfirmedTx           int64
+	delay                        int64
+	cumulative                   int64
+	tps                          []float64
+	roundEndTime                 []time.Time
+	latencyPerRound              []float64
+	viewEndTime                  []time.Time
+	viewStartTime                []time.Time
+	latencyPerView               []float64
+	delayPerView                 []int64
+	sysStartToViewStart          []float64
+	sysStartToViewEnd            []float64
+	rotateOrNot                  bool
+	randomDelayOrNot             bool
 
 	//for PRaft
-	currentTerm int64
-	currentBlockIndex int64
-	duplicateMu sync.Mutex
-	prepareMu sync.Mutex
-	height2blockLogMu sync.Mutex
-	localDuplicatedMu sync.Mutex
+	currentTerm         int64
+	currentBlockIndex   int64
+	duplicateMu         sync.Mutex
+	prepareMu           sync.Mutex
+	height2blockLogMu   sync.Mutex
+	localDuplicatedMu   sync.Mutex
 	localDuplicatedReqs []*duplicatedReqUnit
-	height2blockLog map[int64]*BlockLog
+	height2blockLog     map[int64]*BlockLog
 	localCommittedTxNum int64
-	throughput float64
-	txPoolTime time.Time
-	txPoolBatches []*txPoolUnit
-	dupTime []int64
+	throughput          float64
+	txPoolTime          time.Time
+	txPoolBatches       []*txPoolUnit
+	dupTime             []int64
 }
 
 func (s *Server) pushTxToPool() {
 	// 后8位为节点id
-	for{
+	for {
 		//randomDelay, _ := rand.Int(rand.Reader, big.NewInt(int64(KConfig.Delay)))
 		//randomDelay2 := randomDelay.Int64()
 		//time.Sleep(time.Duration(randomDelay2) * time.Millisecond)
 		//Debug("random duration = %d", randomDelay2)
 		s.txPoolMu.Lock()
-		s.txPool += int64(KConfig.Load/KConfig.ProposerNum)
-		s.cumulative += int64(KConfig.Load/KConfig.ProposerNum)
+		s.txPool += int64(KConfig.Load / KConfig.ProposerNum)
+		s.cumulative += int64(KConfig.Load / KConfig.ProposerNum)
 
 		//time for txPool
 		newTxsUnit := &txPoolUnit{
-			txNum: int64(KConfig.Load / KConfig.ProposerNum),
+			txNum:       int64(KConfig.Load / KConfig.ProposerNum),
 			arrivalTime: time.Now(),
-			completed: false,
+			completed:   false,
 		}
 		s.txPoolBatches = append(s.txPoolBatches, newTxsUnit)
 
 		s.txPoolMu.Unlock()
-		time.Sleep(1000*time.Millisecond)
+		time.Sleep(1000 * time.Millisecond)
 	}
 }
 
-func (s *Server)PrimaryReceiveBackRpc(args *DuplicateConfirmArgs2, returnArgs *TreeBCBackReplyArgs) error {
+func (s *Server) PrimaryReceiveBackRpc(args *DuplicateConfirmArgs2, returnArgs *TreeBCBackReplyArgs) error {
 
 	for i := 0; i < len(args.Args); i++ {
 		cert := s.getCertOrNew(args.Args[i].Msg.Seq)
 		cert.pushDuplicateConfirm(args.Args[i])
 
 		s.duplicateMu.Lock()
-		if cert.stage == InitialStage{
+		if cert.stage == InitialStage {
 			s.verifyBallot(cert)
 		}
 		s.duplicateMu.Unlock()
@@ -110,26 +110,27 @@ func (s *Server)PrimaryReceiveBackRpc(args *DuplicateConfirmArgs2, returnArgs *T
 
 	return nil
 }
+
 //只有根广播者才会调用
-func (s *Server)treeDuplicate(seq int64){
+func (s *Server) treeDuplicate(seq int64) {
 
 	req, digest, duplicator, _ := s.getCertOrNew(seq).get()
 	tree := makeTree(s.id2srvCli, 2, s.node.id)
 	treeBCMsg := &TreeBroadcastMsg{
-		Seq: seq,
-		Digest: digest,
-		NodeId: s.node.id,
+		Seq:              seq,
+		Digest:           digest,
+		NodeId:           s.node.id,
 		DuplicatorNodeId: duplicator,
-		TxNum: int64(req.TxNum),
-		Tree: tree,
+		TxNum:            int64(req.TxNum),
+		Tree:             tree,
 	}
 	digest = Sha256Digest(treeBCMsg)
 	sign := RsaSignWithSha256(digest, s.node.priKey)
 	treeBCArgs := TreeBroadcastArgs{
 		TreeBCMsgs: treeBCMsg,
-		Digest: digest,
-		Sign: sign,
-		ReqArgs: req,
+		Digest:     digest,
+		Sign:       sign,
+		ReqArgs:    req,
 	}
 
 	idArray := traverseTree(tree, s.node.id)
@@ -137,7 +138,7 @@ func (s *Server)treeDuplicate(seq int64){
 	//	Debug("idArray[%d] = %d", i, idArray[i])
 	//}
 	//var duplicateConfirmArgs2Lock sync.Mutex
-    //var duplicateConfirmArgs2 DuplicateConfirmArgs2
+	//var duplicateConfirmArgs2 DuplicateConfirmArgs2
 
 	for i := 0; i < len(idArray); i++ {
 		id := idArray[i]
@@ -149,14 +150,14 @@ func (s *Server)treeDuplicate(seq int64){
 			if err != nil {
 				Error("Server.TreeDuplicateRpc %d error: %v", id, err)
 			}
-			if &returnArgs == nil{
+			if &returnArgs == nil {
 				Error("Calling TreeDuplicateRpc method error")
 			}
 			cert := s.getCertOrNew(returnArgs.Msg.Seq)
 			cert.pushDuplicateConfirm(&returnArgs)
 
 			s.duplicateMu.Lock()
-			if cert.stage == InitialStage{
+			if cert.stage == InitialStage {
 				s.verifyBallot(cert)
 			}
 			s.duplicateMu.Unlock()
@@ -185,9 +186,9 @@ func (s *Server) TreeDuplicateRpc(args *TreeBroadcastArgs, returnArgs *Duplicate
 		14821704,
 		14821705,
 	}
-	for i := 0; i < len(idNodes);i++{
-		if s.node.id == idNodes[i]{
-			time.Sleep(2*time.Second)
+	for i := 0; i < len(idNodes); i++ {
+		if s.node.id == idNodes[i] {
+			time.Sleep(2 * time.Second)
 		}
 	}
 	msg := args.TreeBCMsgs
@@ -202,9 +203,9 @@ func (s *Server) TreeDuplicateRpc(args *TreeBroadcastArgs, returnArgs *Duplicate
 	nextNodes := traverseTree(msg.Tree, s.node.id)
 
 	duplicateConfirmMsg := &DuplicateConfirmMsg{
-		Seq:    msg.Seq,
-		Digest: digest,
-		NodeId: s.node.id,
+		Seq:              msg.Seq,
+		Digest:           digest,
+		NodeId:           s.node.id,
 		DuplicatorNodeId: msg.Tree.Id,
 	}
 	digest = Sha256Digest(duplicateConfirmMsg)
@@ -241,14 +242,13 @@ func (s *Server) TreeDuplicateRpc(args *TreeBroadcastArgs, returnArgs *Duplicate
 				var returnArgs DuplicateConfirmArgs
 				var newArgs TreeBroadcastArgs
 				//不可直接将args.TreeBCMsgs直接赋值给newArgs.TreeBCMsgs，由于TreeBCMsgs是指针，后面在修改nodeId时，会和其他线程冲突
-				treeBCMsg := &TreeBroadcastMsg {
-					TxNum: args.TreeBCMsgs.TxNum,
-					Digest: args.TreeBCMsgs.Digest,
-					Tree: args.TreeBCMsgs.Tree,
-					Seq: args.TreeBCMsgs.Seq,
+				treeBCMsg := &TreeBroadcastMsg{
+					TxNum:            args.TreeBCMsgs.TxNum,
+					Digest:           args.TreeBCMsgs.Digest,
+					Tree:             args.TreeBCMsgs.Tree,
+					Seq:              args.TreeBCMsgs.Seq,
 					DuplicatorNodeId: args.TreeBCMsgs.DuplicatorNodeId,
-					NodeId: s.node.id,
-
+					NodeId:           s.node.id,
 				}
 				newArgs.ReqArgs = args.ReqArgs
 				newArgs.TreeBCMsgs = treeBCMsg
@@ -265,13 +265,13 @@ func (s *Server) TreeDuplicateRpc(args *TreeBroadcastArgs, returnArgs *Duplicate
 				if err != nil {
 					Error("Server.TreeDuplicateRpc %d error: %v", nextNodes[i], err)
 				}
-				if &returnArgs == nil{
+				if &returnArgs == nil {
 					Error("Calling TreeDuplicateRpc method error")
 				}
 
 				duplicateConfirmArgs2Lock.Lock()
 				duplicateConfirmArgs2.Args = append(duplicateConfirmArgs2.Args, &returnArgs)
-				if len(duplicateConfirmArgs2.Args) == len(nextNodes){
+				if len(duplicateConfirmArgs2.Args) == len(nextNodes) {
 					ch <- 1
 				}
 				duplicateConfirmArgs2Lock.Unlock()
@@ -279,8 +279,8 @@ func (s *Server) TreeDuplicateRpc(args *TreeBroadcastArgs, returnArgs *Duplicate
 			}()
 		}
 	}
-	go func(){
-		 <- ch
+	go func() {
+		<-ch
 		srvCli := s.id2srvCli[msg.Tree.Id]
 		var returnArgs TreeBCBackReplyArgs
 		//Debug("Send back to primary %d", msg.Tree.Id)
@@ -288,12 +288,10 @@ func (s *Server) TreeDuplicateRpc(args *TreeBroadcastArgs, returnArgs *Duplicate
 		if err != nil {
 			Error("Server.PrimaryReceiveBackRpc %d error: %v", msg.Tree.Id, err)
 		}
-		if &returnArgs == nil{
+		if &returnArgs == nil {
 			Error("Calling Server.PrimaryReceiveBackRpc method error")
 		}
 	}()
-
-
 
 	//returnMsg := &DuplicateConfirmArgs{
 	//	Msg: duplicateConfirmMsg,
@@ -307,19 +305,18 @@ func (s *Server) TreeDuplicateRpc(args *TreeBroadcastArgs, returnArgs *Duplicate
 	return nil
 }
 
-
-func (s *Server) duplicate(seq int64){
+func (s *Server) duplicate(seq int64) {
 	//广播线程从seq2cert中获取请求参数，并构造prepare消息
 
 	//构造duplicate消息------------------------
 	//startTime := time.Now()
 	req, digest, duplicator, _ := s.getCertOrNew(seq).get()
 	msg := &DuplicateMsg{
-		Seq:    seq,
-		Digest: digest,
-		NodeId: s.node.id,
+		Seq:              seq,
+		Digest:           digest,
+		NodeId:           s.node.id,
 		DuplicatorNodeId: duplicator,
-		TxNum: int64(req.TxNum),
+		TxNum:            int64(req.TxNum),
 	}
 	digest = Sha256Digest(msg)
 	sign := RsaSignWithSha256(digest, s.node.priKey)
@@ -341,13 +338,13 @@ func (s *Server) duplicate(seq int64){
 			if err != nil {
 				Error("Server.DuplicateRpc %d error: %v", id1, err)
 			}
-			if &returnArgs == nil{
+			if &returnArgs == nil {
 				Error("Calling DuplicateRpc method error")
 			}
 			cert := s.getCertOrNew(msg.Seq)
 			cert.pushDuplicateConfirm(&returnArgs)
 			s.duplicateMu.Lock()
-			if cert.stage == InitialStage{
+			if cert.stage == InitialStage {
 				s.verifyBallot(cert)
 			}
 			s.duplicateMu.Unlock()
@@ -375,9 +372,9 @@ func (s *Server) DuplicateRpc(args *DuplicateArgs, returnArgs *DuplicateConfirmA
 		14821704,
 		14821705,
 	}
-	for i := 0; i < len(idNodes);i++{
-		if s.node.id == idNodes[i]{
-			time.Sleep(2*time.Second)
+	for i := 0; i < len(idNodes); i++ {
+		if s.node.id == idNodes[i] {
+			time.Sleep(2 * time.Second)
 		}
 	}
 	msg := args.Msg
@@ -404,14 +401,14 @@ func (s *Server) DuplicateRpc(args *DuplicateArgs, returnArgs *DuplicateConfirmA
 	}
 	//cert.set(reqArgs, digest, msg.View,msg.PrimaryNodeId)
 	cert.set(nil, digest, msg.logIndex, msg.DuplicatorNodeId)
-	_, digest, duplicator, logIndex:= s.getCertOrNew(msg.Seq).get()
+	_, digest, duplicator, logIndex := s.getCertOrNew(msg.Seq).get()
 
 	returnMsg := &DuplicateConfirmMsg{
-		Seq:    cert.seq,
-		Digest: digest,
-		NodeId: s.node.id,
+		Seq:              cert.seq,
+		Digest:           digest,
+		NodeId:           s.node.id,
 		DuplicatorNodeId: duplicator,
-		LogIndex: logIndex,
+		LogIndex:         logIndex,
 	}
 	digest = Sha256Digest(returnMsg)
 	sign := RsaSignWithSha256(digest, s.node.priKey)
@@ -420,21 +417,21 @@ func (s *Server) DuplicateRpc(args *DuplicateArgs, returnArgs *DuplicateConfirmA
 	return nil
 }
 
-func (s *Server) delayReset(){
+func (s *Server) delayReset() {
 	if s.randomDelayOrNot {
 		Debug("random delay set==============")
 		randomDelay, _ := rand.Int(rand.Reader, big.NewInt(int64(KConfig.Delay)))
 		s.randomDelay = randomDelay.Int64()
-	}else{
+	} else {
 		Debug("random delay not set==============")
 		s.randomDelay = int64(KConfig.Delay)
 	}
 
 }
-func (s *Server) rotateProposers(viewNum int, proposersNum int){
+func (s *Server) rotateProposers(viewNum int, proposersNum int) {
 	index := viewNum % len(KConfig.PeerIps)
-	for i := 0; i < proposersNum;i++{
-		s.proposers[i] = KConfig.PeerIds[(index + i) % len(KConfig.PeerIps)]
+	for i := 0; i < proposersNum; i++ {
+		s.proposers[i] = KConfig.PeerIds[(index+i)%len(KConfig.PeerIps)]
 	}
 }
 
@@ -449,12 +446,12 @@ func (s *Server) getCertOrNew(seq int64) *LogCert {
 	cert, ok := s.seq2cert[seq]
 	if !ok {
 		cert = &LogCert{
-			seq:      seq,
-			prepares: make(map[int64]*PrepareArgs),
-			prepareConfirms: make(map[int64]*PrepareConfirmArgs),
+			seq:               seq,
+			prepares:          make(map[int64]*PrepareArgs),
+			prepareConfirms:   make(map[int64]*PrepareConfirmArgs),
 			duplicateConfirms: make(map[int64]*DuplicateConfirmArgs),
-			prepareQ: make([]*PrepareArgs, 0),
-			prepareConfirmQ: make([]*PrepareConfirmArgs, 0),
+			prepareQ:          make([]*PrepareArgs, 0),
+			prepareConfirmQ:   make([]*PrepareConfirmArgs, 0),
 		}
 		s.seq2cert[seq] = cert
 	}
@@ -492,7 +489,7 @@ func (s *Server) RequestRpc(args *RequestArgs, reply *RequestReply) error {
 	// leader 分配seq
 	seq := s.assignSeq()
 	//主节点新建logCert，设置参数，并存储在seq2cert中
-	s.getCertOrNew(seq).set(args, digest, s.view,s.node.id)
+	s.getCertOrNew(seq).set(args, digest, s.view, s.node.id)
 	//向共识线程发送开始共识信号
 	s.seqCh <- seq
 
@@ -503,11 +500,11 @@ func (s *Server) RequestRpc(args *RequestArgs, reply *RequestReply) error {
 	return nil
 }
 
-func (s *Server) controlSending(){
+func (s *Server) controlSending() {
 	startTime := time.Now()
 	if s.isProposer {
-		for{
-			time.Sleep(100*time.Millisecond)
+		for {
+			time.Sleep(100 * time.Millisecond)
 			s.localDuplicatedMu.Lock()
 			if len(s.localDuplicatedReqs) != 0 {
 				Debug("System current duplicated req num = %d", len(s.localDuplicatedReqs))
@@ -516,13 +513,13 @@ func (s *Server) controlSending(){
 				Debug("System current committed tx num = %d", s.localCommittedTxNum)
 				endTime := time.Now()
 				Debug("Time duration is %f, System throughput is %f", endTime.Sub(startTime).Seconds(), float64(s.localCommittedTxNum)/endTime.Sub(startTime).Seconds())
-                if float64(s.localCommittedTxNum)/endTime.Sub(startTime).Seconds() > s.throughput {
-                	s.throughput = float64(s.localCommittedTxNum)/endTime.Sub(startTime).Seconds()
+				if float64(s.localCommittedTxNum)/endTime.Sub(startTime).Seconds() > s.throughput {
+					s.throughput = float64(s.localCommittedTxNum) / endTime.Sub(startTime).Seconds()
 				}
 				Debug("Maximum throughput is %f", s.throughput)
 			} else {
 				s.localDuplicatedMu.Unlock()
-				time.Sleep(1000*time.Millisecond)
+				time.Sleep(1000 * time.Millisecond)
 				s.localDuplicatedMu.Lock()
 				Debug("System current duplicated req num = %d", len(s.localDuplicatedReqs))
 				s.localDuplicatedMu.Unlock()
@@ -531,28 +528,29 @@ func (s *Server) controlSending(){
 				endTime := time.Now()
 				Debug("Time duration is %f, System throughput is %f", endTime.Sub(startTime).Seconds(), float64(s.localCommittedTxNum)/endTime.Sub(startTime).Seconds())
 				if float64(s.localCommittedTxNum)/endTime.Sub(startTime).Seconds() > s.throughput {
-					s.throughput = float64(s.localCommittedTxNum)/endTime.Sub(startTime).Seconds()
+					s.throughput = float64(s.localCommittedTxNum) / endTime.Sub(startTime).Seconds()
 				}
 				Debug("Maximum throughput is %f", s.throughput)
 			}
 		}
 	}
 }
+
 //******    rpc发送的结构体中的元素首字母必须大写
-func (s *Server) Sending(){
+func (s *Server) Sending() {
 	s.currentBlockIndex++
 	//构造新的区块
 	block := &Block{
-		BlockIndex: s.currentBlockIndex,
+		BlockIndex:     s.currentBlockIndex,
 		DuplicatedReqs: nil,
-		Committed: false,
-		TxNum: 0,
+		Committed:      false,
+		TxNum:          0,
 	}
 
 	//将本地可靠广播的请求放到区块中，并将本地可靠广播的请求清空
 	s.localDuplicatedMu.Lock()
 	Debug("s.localDuplicatedReq size = %d (before clear)\n", len(s.localDuplicatedReqs))
-	for i := 0; i < len(s.localDuplicatedReqs); i++{
+	for i := 0; i < len(s.localDuplicatedReqs); i++ {
 		block.DuplicatedReqs = append(block.DuplicatedReqs, s.localDuplicatedReqs[i])
 		block.TxNum = block.TxNum + s.localDuplicatedReqs[i].TxNum
 	}
@@ -567,23 +565,23 @@ func (s *Server) Sending(){
 		CommitBlockIndex: s.currentBlockIndex - 1,
 		//CommitBlockTxNum: s.height2blockLog[s.currentBlockIndex-1].txNum,
 		PrimaryNodeId: s.node.id,
-		Block: block,
+		Block:         block,
 	}
 	digest := Sha256Digest(msg)
 	sign := RsaSignWithSha256(digest, s.node.priKey)
 	args := &SendingArgs{
-		Msg: msg,
+		Msg:    msg,
 		Digest: digest,
-		Sign: sign,
+		Sign:   sign,
 	}
 	//将新产生的区块添加到本地日志中，可通过区块高度访问区块
-    s.localDuplicatedMu.Lock()
+	s.localDuplicatedMu.Lock()
 	newBlockLog := &BlockLog{
-		blockIndex: s.currentBlockIndex,
+		blockIndex:     s.currentBlockIndex,
 		duplicatedReqs: s.localDuplicatedReqs,
-		txNum: block.TxNum,
-		prepared: false,
-		committed: false,
+		txNum:          block.TxNum,
+		prepared:       false,
+		committed:      false,
 	}
 	s.localCommittedTxNum += block.TxNum
 	s.localDuplicatedMu.Unlock()
@@ -591,8 +589,7 @@ func (s *Server) Sending(){
 	s.height2blockLog[newBlockLog.blockIndex] = newBlockLog
 	s.height2blockLogMu.Unlock()
 
-
-    //将构造的消息发送给其他节点
+	//将构造的消息发送给其他节点
 	for id, srvCli := range s.id2srvCli {
 		id1, srvCli1 := id, srvCli
 		go func() { // 异步发送
@@ -601,19 +598,19 @@ func (s *Server) Sending(){
 			if err != nil {
 				Error("Server.Receiving %d error: %v", id1, err)
 			}
-			if &returnArgs == nil{
+			if &returnArgs == nil {
 				Error("Calling Receiving method error")
 			}
 			//cert := s.getCertOrNew(msg.Seq)
 			//构造新区块，并确认前一个区块
 			s.height2blockLogMu.Lock()
-            prepareBlockLog, ok := s.height2blockLog[returnArgs.Msg.PrepareBlockIndex]
-            if !ok{
+			prepareBlockLog, ok := s.height2blockLog[returnArgs.Msg.PrepareBlockIndex]
+			if !ok {
 				s.height2blockLogMu.Unlock()
-            	return
+				return
 			}
 			commitBlockLog, ok := s.height2blockLog[returnArgs.Msg.CommittedBlockIndex]
-			if !ok{
+			if !ok {
 				s.height2blockLogMu.Unlock()
 				return
 			}
@@ -630,7 +627,7 @@ func (s *Server) Sending(){
 			if len(returnArgs.Msg.NewDuplicatedReqs) > 0 {
 				s.localDuplicatedMu.Lock()
 				//Debug("current duplicated pool is %d, append duplicated req from %d, duplicated num = %d", len(s.localDuplicatedReqs), returnArgs.Msg.NodeId, len(returnArgs.Msg.NewDuplicatedReqs))
-				for i := 0; i < len(returnArgs.Msg.NewDuplicatedReqs); i++{
+				for i := 0; i < len(returnArgs.Msg.NewDuplicatedReqs); i++ {
 					s.localDuplicatedReqs = append(s.localDuplicatedReqs, returnArgs.Msg.NewDuplicatedReqs[i])
 					//Debug("received report unit tx num = %d", returnArgs.Msg.NewDuplicatedReqs[i].TxNum)
 				}
@@ -640,7 +637,7 @@ func (s *Server) Sending(){
 		}()
 	}
 }
-func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) error{
+func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) error {
 	msg := args.Msg
 	//Debug("block req size = %d", len(msg.Block.DuplicatedReqs))
 
@@ -654,49 +651,49 @@ func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) err
 	s.height2blockLogMu.Lock()
 	prepareBlockLog, ok := s.height2blockLog[msg.Block.BlockIndex]
 	s.height2blockLogMu.Unlock()
-	if !ok{
+	if !ok {
 		prepareBlockLog := &BlockLog{
-			blockIndex: msg.Block.BlockIndex,
-			prepared: true,
-			committed: false,
+			blockIndex:     msg.Block.BlockIndex,
+			prepared:       true,
+			committed:      false,
 			duplicatedReqs: msg.Block.DuplicatedReqs,
-			primaryNodeId: msg.PrimaryNodeId,
+			primaryNodeId:  msg.PrimaryNodeId,
 		}
 		s.height2blockLogMu.Lock()
 		s.height2blockLog[msg.Block.BlockIndex] = prepareBlockLog
 		s.height2blockLogMu.Unlock()
 		//Debug("Block [%d] has prepared", prepareBlockLog.blockIndex)
-	}else{
+	} else {
 		prepareBlockLog.prepared = true
 		Debug("Block [%d] has prepared, but committed ahead and committed req number = %d", prepareBlockLog.blockIndex, len(prepareBlockLog.duplicatedReqs))
 	}
 	s.height2blockLogMu.Lock()
-	commitBlockLog, ok:= s.height2blockLog[msg.CommitBlockIndex]
+	commitBlockLog, ok := s.height2blockLog[msg.CommitBlockIndex]
 	s.height2blockLogMu.Unlock()
-	if !ok{
+	if !ok {
 		commitBlockLog := &BlockLog{
 			blockIndex: msg.CommitBlockIndex,
-			prepared: false,
-			committed: true,
+			prepared:   false,
+			committed:  true,
 		}
 		s.height2blockLogMu.Lock()
 		s.height2blockLog[msg.Block.BlockIndex] = commitBlockLog
 		s.height2blockLogMu.Unlock()
 		Debug("Block [%d] has committed, but not prepared", commitBlockLog.blockIndex)
-	}else{
+	} else {
 		commitBlockLog.committed = true
 		//Debug("Block [%d] has committed and committed req number = %d", commitBlockLog.blockIndex, len(commitBlockLog.duplicatedReqs))
 	}
 	returnMsg := &SendingReturnMsg{
-		PrepareBlockIndex: msg.Block.BlockIndex,
+		PrepareBlockIndex:   msg.Block.BlockIndex,
 		CommittedBlockIndex: args.Msg.CommitBlockIndex,
-		NewDuplicatedReqs: make([]*duplicatedReqUnit, 10),
-		NodeId: s.node.id,
+		NewDuplicatedReqs:   make([]*duplicatedReqUnit, 10),
+		NodeId:              s.node.id,
 	}
 	returnMsg.NewDuplicatedReqs = nil
 	s.localDuplicatedMu.Lock()
 	//Debug("local duplicated reqs = %d", len(s.localDuplicatedReqs))
-	for i:= 0; i < len(s.localDuplicatedReqs); i++{
+	for i := 0; i < len(s.localDuplicatedReqs); i++ {
 		Debug("report unit tx num = %d", s.localDuplicatedReqs[i].TxNum)
 		returnMsg.NewDuplicatedReqs = append(returnMsg.NewDuplicatedReqs, s.localDuplicatedReqs[i])
 	}
@@ -716,15 +713,15 @@ func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) err
 func (s *Server) Prepare(seq int64) {
 	//共识线程从seq2cert中获取请求参数，并构造prepare消息
 
-    //构造prepare消息------------------------
+	//构造prepare消息------------------------
 	req, digest, primary, logIndex := s.getCertOrNew(seq).get()
 	msg := &PrepareMsg{
-		logIndex: logIndex,
-		Seq:    seq,
-		Digest: digest,
-		NodeId: s.node.id,
+		logIndex:      logIndex,
+		Seq:           seq,
+		Digest:        digest,
+		NodeId:        s.node.id,
 		PrimaryNodeId: primary,
-		TxNum: int64(req.TxNum),
+		TxNum:         int64(req.TxNum),
 	}
 	digest = Sha256Digest(msg)
 	sign := RsaSignWithSha256(digest, s.node.priKey)
@@ -748,22 +745,23 @@ func (s *Server) Prepare(seq int64) {
 			//returnMsg := returnArgs.Msg
 			//Debug("PrepareShareRpc, seq: %d, from: %d", msg.Seq, id1)
 			// 这里先不验证，因为可能 req 消息还未收到，先存下投票信息后期验证
-			if &returnArgs == nil{
+			if &returnArgs == nil {
 				Error("Calling PrepareRpc method error")
 			}
 			cert := s.getCertOrNew(msg.Seq)
 			cert.pushPrepareConfirm(&returnArgs)
 			s.prepareMu.Lock()
-			if cert.stage == PrepareStage{
+			if cert.stage == PrepareStage {
 				s.verifyBallot(cert)
 			}
 			s.prepareMu.Unlock()
 		}()
 	}
-    //s.getCertOrNew(seq).set(nil, digest, view, primary)
+	//s.getCertOrNew(seq).set(nil, digest, view, primary)
 	Debug("Prepare %d ok", seq)
 	//s.Prepare(seq)
 }
+
 //从节点接收prepare消息
 //Raft 第一阶段（从节点）
 func (s *Server) PrepareRpc(args *PrepareArgs, returnArgs *PrepareConfirmArgs) error {
@@ -808,18 +806,18 @@ func (s *Server) PrepareRpc(args *PrepareArgs, returnArgs *PrepareConfirmArgs) e
 	}
 	//cert.set(reqArgs, digest, msg.View,msg.PrimaryNodeId)
 	cert.set(nil, digest, msg.logIndex, msg.PrimaryNodeId)
-	_, digest, primary, logIndex:= s.getCertOrNew(msg.Seq).get()
+	_, digest, primary, logIndex := s.getCertOrNew(msg.Seq).get()
 
 	//view := s.localViewCommitted.getView(viewNum)
 	//s.sysStartToViewStart[viewNum-1] = view.startTime.Sub(s.startTime).Seconds()
 	//s.viewStartTime[viewNum-1] = view.startTime
 
 	returnMsg := &PrepareConfirmMsg{
-		Seq:    cert.seq,
-		Digest: digest,
-		NodeId: s.node.id,
+		Seq:           cert.seq,
+		Digest:        digest,
+		NodeId:        s.node.id,
 		PrimaryNodeId: primary,
-		LogIndex: logIndex,
+		LogIndex:      logIndex,
 	}
 	digest = Sha256Digest(returnMsg)
 	sign := RsaSignWithSha256(digest, s.node.priKey)
@@ -833,12 +831,12 @@ func (s *Server) PrepareRpc(args *PrepareArgs, returnArgs *PrepareConfirmArgs) e
 func (s *Server) Commit(seq int64) {
 	req, digest, primary, logIndex := s.getCertOrNew(seq).get()
 	msg := &CommitMsg{
-		Seq:    seq,
-		Digest: digest,
-		NodeId: s.node.id,
+		Seq:           seq,
+		Digest:        digest,
+		NodeId:        s.node.id,
 		PrimaryNodeId: primary,
-		TxNum: int64(req.TxNum),
-		LogIndex: logIndex,
+		TxNum:         int64(req.TxNum),
+		LogIndex:      logIndex,
 	}
 	digest = Sha256Digest(msg)
 	sign := RsaSignWithSha256(digest, s.node.priKey)
@@ -860,6 +858,7 @@ func (s *Server) Commit(seq int64) {
 		}()
 	}
 }
+
 //从节点接收commit消息
 //Raft 第二阶段（从节点）
 func (s *Server) CommitRpc(args *PrepareArgs, returnArgs *CommitConfirmArgs) error {
@@ -874,13 +873,13 @@ func (s *Server) CommitRpc(args *PrepareArgs, returnArgs *CommitConfirmArgs) err
 		return nil
 	}
 
-	_, digest, primary, logIndex:= s.getCertOrNew(cert.seq).get()
+	_, digest, primary, logIndex := s.getCertOrNew(cert.seq).get()
 	returnMsg := &CommitConfirmMsg{
-		Seq:    cert.seq,
-		Digest: digest,
-		NodeId: s.node.id,
+		Seq:           cert.seq,
+		Digest:        digest,
+		NodeId:        s.node.id,
 		PrimaryNodeId: primary,
-		LogIndex: logIndex,
+		LogIndex:      logIndex,
 	}
 	digest = Sha256Digest(returnMsg)
 	sign := RsaSignWithSha256(digest, s.node.priKey)
@@ -888,11 +887,11 @@ func (s *Server) CommitRpc(args *PrepareArgs, returnArgs *CommitConfirmArgs) err
 	returnArgs.Msg = returnMsg
 	returnArgs.Sign = sign
 
-	if cert.stage == PrepareStage{
+	if cert.stage == PrepareStage {
 		cert.stage = CommitStage
 		s.currentBlockIndex++
 	}
-	Info("Backup[%d] has committed log[%d]",s.node.id, s.currentBlockIndex)
+	Info("Backup[%d] has committed log[%d]", s.node.id, s.currentBlockIndex)
 	return nil
 }
 
@@ -927,42 +926,42 @@ func (s *Server) verifyBallot(cert *LogCert) {
 		//投prepareConfirm票
 		cert.duplicateConfirmVote(args)
 	}
-		// f + 1 (包括自身) 后进入 commit 阶段
-		if cert.duplicateConfirmBallot() >= KConfig.FaultNum {
-			//Info("Primary has duplicated request %s(hash value) ", cert.digest)
-			cert.setStage(DuplicatedStage)
-			duplicatedReq := &duplicatedReqUnit{
-				DuplicatingNodeId: s.node.id,
-				Digest: reqDigest,
-				TxNum: int64(cert.req.TxNum),
-				Sign: RsaSignWithSha256(reqDigest, s.node.priKey),
-			}
-			cert.req = nil
-			s.localDuplicatedMu.Lock()
-			//Debug("Broadcasted req txNum = %d", duplicatedReq.TxNum)
-			s.localDuplicatedReqs = append(s.localDuplicatedReqs, duplicatedReq)
-			//Debug("nodeId : ", s.localDuplicatedReqs[len(s.localDuplicatedReqs)-1].duplicatingNodeId)
-
-			s.localDuplicatedMu.Unlock()
-			//go s.Commit(cert.seq)
-            //
-            cert.completeTime = time.Now()
-            Debug("Duplicating duration time = %d ms", cert.completeTime.Sub(cert.produceTime).Milliseconds())
-			s.dupTime = append(s.dupTime, cert.completeTime.Sub(cert.produceTime).Milliseconds())
-			Debug("duplicate round = %d", len(s.dupTime))
-			if len(s.dupTime) == 100 {
-				fmt.Print(s.dupTime)
-			}
-				s.makeReq()
-			//s.delayReset()
-			//Debug("Entering a new round of duplicating ")
-
+	// f + 1 (包括自身) 后进入 commit 阶段
+	if cert.duplicateConfirmBallot() >= KConfig.FaultNum {
+		//Info("Primary has duplicated request %s(hash value) ", cert.digest)
+		cert.setStage(DuplicatedStage)
+		duplicatedReq := &duplicatedReqUnit{
+			DuplicatingNodeId: s.node.id,
+			Digest:            reqDigest,
+			TxNum:             int64(cert.req.TxNum),
+			Sign:              RsaSignWithSha256(reqDigest, s.node.priKey),
 		}
+		cert.req = nil
+		s.localDuplicatedMu.Lock()
+		//Debug("Broadcasted req txNum = %d", duplicatedReq.TxNum)
+		s.localDuplicatedReqs = append(s.localDuplicatedReqs, duplicatedReq)
+		//Debug("nodeId : ", s.localDuplicatedReqs[len(s.localDuplicatedReqs)-1].duplicatingNodeId)
+
+		s.localDuplicatedMu.Unlock()
+		//go s.Commit(cert.seq)
+		//
+		cert.completeTime = time.Now()
+		Debug("Duplicating duration time = %d ms", cert.completeTime.Sub(cert.produceTime).Milliseconds())
+		s.dupTime = append(s.dupTime, cert.completeTime.Sub(cert.produceTime).Milliseconds())
+		Debug("duplicate round = %d", len(s.dupTime))
+		if len(s.dupTime) == 100 {
+			fmt.Print(s.dupTime)
+		}
+		s.makeReq()
+		//s.delayReset()
+		//Debug("Entering a new round of duplicating ")
+
+	}
 }
 
 func (s *Server) Reply(seq int64) {
 	Debug("Reply %d", seq)
-	req, _ ,_, _ := s.getCertOrNew(seq).get()
+	req, _, _, _ := s.getCertOrNew(seq).get()
 	msg := &ReplyMsg{
 		Seq:       seq,
 		Timestamp: time.Now().UnixNano(),
@@ -1049,17 +1048,17 @@ func (s *Server) connect() {
 	Info("== connect success ==")
 }
 
-func (s *Server) isProposerOrNot(viewNum int,nodeId int64)bool{
-	if !s.rotateOrNot{
-		for _,proposerId := range s.proposers{
-			if nodeId == proposerId{
+func (s *Server) isProposerOrNot(viewNum int, nodeId int64) bool {
+	if !s.rotateOrNot {
+		for _, proposerId := range s.proposers {
+			if nodeId == proposerId {
 				return true
 			}
 		}
-	}else{
+	} else {
 		index := viewNum % len(KConfig.PeerIds)
-		for i := 0; i < len(s.proposers);i++{
-			if KConfig.PeerIds[(index + i) % len(KConfig.PeerIds)] == nodeId{
+		for i := 0; i < len(s.proposers); i++ {
+			if KConfig.PeerIds[(index+i)%len(KConfig.PeerIds)] == nodeId {
 				return true
 			}
 		}
@@ -1067,7 +1066,7 @@ func (s *Server) isProposerOrNot(viewNum int,nodeId int64)bool{
 	return false
 }
 
-func (s *Server) makeReq(){
+func (s *Server) makeReq() {
 	//time.Sleep(500*time.Millisecond)
 	var realBatchTxNum int
 	//s.txPoolMu.Lock()
@@ -1100,21 +1099,21 @@ func (s *Server) makeReq(){
 
 	if s.txPoolBatches[len(s.txPoolBatches)-1].txNum == 0 {
 		s.txPoolMu.Unlock()
-		for{
-			time.Sleep(500*time.Millisecond)
+		for {
+			time.Sleep(500 * time.Millisecond)
 			s.txPoolMu.Lock()
-			if s.txPoolBatches[len(s.txPoolBatches)-1].txNum != 0{
+			if s.txPoolBatches[len(s.txPoolBatches)-1].txNum != 0 {
 				break
 			}
 			s.txPoolMu.Unlock()
 		}
 	}
-	for i := 0; i < len(s.txPoolBatches); i++{
-		if int(s.txPoolBatches[i].txNum) > KConfig.BatchTxNum - realBatchTxNum{
+	for i := 0; i < len(s.txPoolBatches); i++ {
+		if int(s.txPoolBatches[i].txNum) > KConfig.BatchTxNum-realBatchTxNum {
 			realBatchTxNum += KConfig.BatchTxNum - realBatchTxNum
 			s.txPoolBatches[i].txNum -= int64(KConfig.BatchTxNum - realBatchTxNum)
 			break
-		}else{
+		} else {
 			if s.txPoolBatches[i].txNum != 0 {
 				realBatchTxNum += int(s.txPoolBatches[i].txNum)
 				s.txPoolBatches[i].txNum = 0
@@ -1137,7 +1136,7 @@ func (s *Server) makeReq(){
 	//	s.txPoolMu.Unlock()
 	//}
 
-	req := &RequestMsg {
+	req := &RequestMsg{
 		Operator:  make([]byte, realBatchTxNum*KConfig.TxSize),
 		Timestamp: time.Now().UnixNano(),
 		//ClientId:  args.Req.ClientId,
@@ -1147,10 +1146,10 @@ func (s *Server) makeReq(){
 	digest := Sha256Digest(req)
 	sign := RsaSignWithSha256(digest, node.priKey)
 
-	args := &RequestArgs {
-		Req:  req,
+	args := &RequestArgs{
+		Req:   req,
 		TxNum: realBatchTxNum,
-		Sign: sign,
+		Sign:  sign,
 	}
 	seq := s.assignSeq()
 	//主节点新建logCert，设置参数，并存储在seq2cert中
@@ -1165,15 +1164,15 @@ func (s *Server) makeReq(){
 }
 
 func (s *Server) workLoop() {
-    startTime := time.Now()
-    //if s.node.id == 14804501{
-		s.makeReq()
+	startTime := time.Now()
+	//if s.node.id == 14804501{
+	s.makeReq()
 	//}
-    go s.controlSending()
+	go s.controlSending()
 
 	fmt.Printf("start time = %v\n ", startTime)
 	for seq := range s.seqCh {
-		if KConfig.DuplicateMode == 1{
+		if KConfig.DuplicateMode == 1 {
 			Debug("start broadcast duplicating")
 			s.duplicate(seq)
 		} else {
@@ -1183,17 +1182,17 @@ func (s *Server) workLoop() {
 	}
 }
 
-func (s *Server)calculateTPS(){
-	for i:= 0; i < 100;i++{
+func (s *Server) calculateTPS() {
+	for i := 0; i < 100; i++ {
 		timeNow := time.Now()
 		s.tps[i] = float64(s.localNodeSendingTxs) / timeNow.Sub(s.startTime).Seconds()
-		time.Sleep(1*time.Second)
+		time.Sleep(1 * time.Second)
 	}
 }
 
 func (s *Server) Start() {
 	s.connect()
-	time.Sleep(2*time.Second)
+	time.Sleep(2 * time.Second)
 	s.workLoop()
 }
 
@@ -1211,44 +1210,44 @@ func RunServer(id int64, delayRange int64) {
 	//randomDelay := rand.Int(10)
 
 	server := &Server{
-		node:      KConfig.Id2Node[id],
-		seqCh:     make(chan int64, ChanSize),
-		logs:      make([]*Log, 0),
+		node:                    KConfig.Id2Node[id],
+		seqCh:                   make(chan int64, ChanSize),
+		logs:                    make([]*Log, 0),
 		eachInstanceViewLocally: make(map[int64]int64),
-		viewCommittedInstance: make(map[int64]int64),
-		seq2cert:  make(map[int64]*LogCert),
-		id2srvCli: make(map[int64]*rpc.Client),
-		id2cliCli: make(map[int64]*rpc.Client),
-		localViewCommitted: localView,
+		viewCommittedInstance:   make(map[int64]int64),
+		seq2cert:                make(map[int64]*LogCert),
+		id2srvCli:               make(map[int64]*rpc.Client),
+		id2cliCli:               make(map[int64]*rpc.Client),
+		localViewCommitted:      localView,
 		//randomDelay: randomDelay.Int64(),
-		randomDelay: 0,
-		startTime: time.Now(),
-		proposers: make([]int64, KConfig.ProposerNum),
-		isProposer: KConfig.IsProposer,
-		delay: int64(KConfig.Delay),
-		tps: make([]float64, 100),
-		roundEndTime: make([]time.Time, 100),
-		latencyPerRound: make([]float64, 100),
-		viewEndTime: make([]time.Time, 100),
-		viewStartTime: make([]time.Time, 100),
-		latencyPerView: make([]float64, 100),
-		delayPerView: make([]int64, 100),
+		randomDelay:         0,
+		startTime:           time.Now(),
+		proposers:           make([]int64, KConfig.ProposerNum),
+		isProposer:          KConfig.IsProposer,
+		delay:               int64(KConfig.Delay),
+		tps:                 make([]float64, 100),
+		roundEndTime:        make([]time.Time, 100),
+		latencyPerRound:     make([]float64, 100),
+		viewEndTime:         make([]time.Time, 100),
+		viewStartTime:       make([]time.Time, 100),
+		latencyPerView:      make([]float64, 100),
+		delayPerView:        make([]int64, 100),
 		sysStartToViewStart: make([]float64, 100),
-		sysStartToViewEnd: make([]float64, 100),
-		rotateOrNot: KConfig.RotateOrNot,
-		randomDelayOrNot: KConfig.RandomDelayOrNot,
-        // for PRaft
+		sysStartToViewEnd:   make([]float64, 100),
+		rotateOrNot:         KConfig.RotateOrNot,
+		randomDelayOrNot:    KConfig.RandomDelayOrNot,
+		// for PRaft
 		currentBlockIndex: 0,
-		currentTerm: 1,
-		height2blockLog:  make(map[int64]*BlockLog),
+		currentTerm:       1,
+		height2blockLog:   make(map[int64]*BlockLog),
 		//localDuplicatedReqs: make([]*duplicatedReqUnit,10),
 	}
 	server.delayReset()
-	Debug("random delay is %d ms",server.randomDelay)
-	for _, nodeId := range KConfig.PeerIds{
+	Debug("random delay is %d ms", server.randomDelay)
+	for _, nodeId := range KConfig.PeerIds {
 		server.eachInstanceViewLocally[nodeId] = 0
 	}
-	for i := 0; i < KConfig.ProposerNum;i++{
+	for i := 0; i < KConfig.ProposerNum; i++ {
 		server.proposers[i] = KConfig.ProposerIds[i]
 		//Debug("proposer id = %d",server.proposers[i])
 	}
