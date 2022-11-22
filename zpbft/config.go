@@ -100,16 +100,6 @@ func InitConfig(processId int) {
 			KConfig.PeerIds = append(KConfig.PeerIds, id)
 		}
 	}
-	//for i := 0; i < KConfig.ProcessNum; i++ {
-	//	for _, ip := range KConfig.PeerIps {
-	//		port := KConfig.PortBase + 1 + i
-	//		id := GetId(ip, port)
-	//		keyDir := KCertsDir + "/" + fmt.Sprint(id)
-	//		priKey, pubKey := ReadKeyPair(keyDir)
-	//		KConfig.Id2Node[id] = NewNode(ip, port, priKey, pubKey)
-	//		KConfig.PeerIds = append(KConfig.PeerIds, id)
-	//	}
-	//}
 	KConfig.LocalIp = GetLocalIp()
 	//设置Proposer，peerIps前KConfig.ProposerNum个是Proposer
 	KConfig.ProposerIds = make([]int64, KConfig.ProposerNum)
@@ -128,11 +118,10 @@ func InitConfig(processId int) {
 	// 计算容错数
 	KConfig.FaultNum = (len(KConfig.Id2Node) - 1) / 3
 	// 设置本地IP和客户端
-	id := GetId(KConfig.ClientIp, KConfig.PortBase+1)
-
-	keyDir := KCertsDir + "/" + fmt.Sprint(id)
-	priKey, pubKey := ReadKeyPair(keyDir)
-	KConfig.ClientNode = NewNode(KConfig.ClientIp, KConfig.PortBase+1, priKey, pubKey)
+	// id := GetId(KConfig.ClientIp, KConfig.PortBase+1)
+	// keyDir := KCertsDir + "/" + fmt.Sprint(id)
+	// priKey, pubKey := ReadKeyPairDefault()
+	// KConfig.ClientNode = NewNode(KConfig.ClientIp, KConfig.PortBase+1, priKey, pubKey)
 }
 
 func IsClient() bool {

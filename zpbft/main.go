@@ -2,6 +2,8 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"praft/ycsb"
 	"runtime"
 )
 
@@ -33,7 +35,8 @@ func main() {
 		Info("start server...")
 		runtime.GOMAXPROCS(KConfig.GoMaxProcs)
 		nodeId := GetId(KConfig.LocalIp, KConfig.PortBase+processIdx)
-
+		dbDir := fmt.Sprintf("levdb/%d", nodeId)
+		ycsb.InitDB(dbDir)
 		RunServer(nodeId, delayRange)
 	}
 }

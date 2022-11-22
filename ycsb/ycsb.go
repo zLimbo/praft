@@ -15,12 +15,12 @@ var (
 	kmap map[string]struct{}
 )
 
-func init() {
-	db1, err := leveldb.OpenFile("levdb", nil)
+func InitDB(dir string) {
+	var err error
+	db, err = leveldb.OpenFile(dir, nil)
 	if err != nil {
 		panic("open db failed!")
 	}
-	db = db1
 	kmap = make(map[string]struct{})
 }
 
