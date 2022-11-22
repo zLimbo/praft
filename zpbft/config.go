@@ -15,11 +15,12 @@ var strByte = []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ123456
 var strByteLen = len(strByte)
 
 const (
-	MBSize       = 1024 * 1024
-	ChanSize     = 10000
-	KConfigFile  = "./config/config.json"
-	KCertsDir    = "./certs"
-	KLocalIpFile = "./config/local_ip.txt"
+	MBSize      = 1024 * 1024
+	ChanSize    = 10000
+	KConfigFile = "./config/config.json"
+	KCertsDir   = "./certs"
+	KPeersFile  = "./config/peers.json"
+	// KLocalIpFile = "./config/local_ip.txt"
 )
 
 type Config struct {
@@ -74,6 +75,17 @@ func InitConfig(processId int) {
 		Error("json.Unmarshal(jsonBytes, &KConfig) err: %v", err)
 	}
 
+	jsonBytes1, err := ioutil.ReadFile(KPeersFile)
+	if err != nil {
+		Error("read %s failed.", KPeersFile)
+	}
+	err = json.Unmarshal(jsonBytes1, &KConfig.PeerIps)
+	if err != nil {
+		Error("json.Unmarshal(jsonBytes, &KConfig) err: %v", err)
+	}
+
+	fmt.Println("config: ", KConfig)
+
 	// 配置节点ip, port, 公私钥
 	KConfig.PeerIps = KConfig.PeerIps[:KConfig.IpNum]
 	KConfig.Id2Node = make(map[int64]*Node)
@@ -81,8 +93,9 @@ func InitConfig(processId int) {
 		for i := 0; i < KConfig.ProcessNumArray[j]; i++ {
 			port := KConfig.PortBase + 1 + i
 			id := GetId(KConfig.PeerIps[j], port)
-			keyDir := KCertsDir + "/" + fmt.Sprint(id)
-			priKey, pubKey := ReadKeyPair(keyDir)
+			// keyDir := KCertsDir + "/" + fmt.Sprint(id)
+			// priKey, pubKey := ReadKeyPair(keyDir)
+			priKey, pubKey := ReadKeyPairDefault() // 方便起见，使用同一个密钥
 			KConfig.Id2Node[id] = NewNode(KConfig.PeerIps[j], port, priKey, pubKey)
 			KConfig.PeerIds = append(KConfig.PeerIds, id)
 		}

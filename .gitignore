@@ -8,4 +8,5 @@ api.key
 *-handin.tar.gz
 
 *.log
-certs/
+bin/
+config/peers.json

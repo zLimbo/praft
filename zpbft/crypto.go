@@ -10,6 +10,18 @@ import (
 	"io/ioutil"
 )
 
+func ReadKeyPairDefault() ([]byte, []byte) {
+	prikey, err := ioutil.ReadFile(KCertsDir + "/pri.pem")
+	if err != nil {
+		Error("err: %v", err)
+	}
+	pubkey, err := ioutil.ReadFile(KCertsDir + "/pub.pem")
+	if err != nil {
+		Error("err: %v", err)
+	}
+	return prikey, pubkey
+}
+
 func ReadKeyPair(keyDir string) ([]byte, []byte) {
 	Debug("read key pair from %s", keyDir)
 	priKey, err := ioutil.ReadFile(keyDir + "/rsa.pri.pem")
@@ -75,7 +87,7 @@ func Sha256Digest(msg interface{}) []byte {
 }
 
 func JsonMarshal(msg interface{}) []byte {
-	return make([]byte,100)
+	return make([]byte, 100)
 	//msgBytes, err := json.Marshal(msg)
 	//if err != nil {
 	//	Error("json.Marshal(msg), err: %v", err)
