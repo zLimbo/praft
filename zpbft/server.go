@@ -68,6 +68,9 @@ type Server struct {
 	txPoolTime          time.Time
 	txPoolBatches       []*txPoolUnit
 	dupTime             []int64
+
+	// for execute
+	execCh chan int64
 }
 
 func (s *Server) pushTxToPool() {
@@ -642,6 +645,8 @@ func (s *Server) Sending() {
 			}
 		}()
 	}
+	// 执行
+	s.execCh <- msg.CommitBlockIndex
 }
 
 func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) error {
@@ -692,6 +697,11 @@ func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) err
 		commitBlockLog.committed = true
 		//Debug("Block [%d] has committed and committed req number = %d", commitBlockLog.blockIndex, len(commitBlockLog.duplicatedReqs))
 	}
+
+	if commitBlockLog.prepared && commitBlockLog.committed {
+		s.execCh <- commitBlockLog.blockIndex
+	}
+
 	returnMsg := &SendingReturnMsg{
 		PrepareBlockIndex:   msg.Block.BlockIndex,
 		CommittedBlockIndex: args.Msg.CommitBlockIndex,
@@ -1201,6 +1211,39 @@ func (s *Server) calculateTPS() {
 	}
 }
 
+func (s *Server) execute() {
+	curExecHeight := int64(0)
+	aheadSet := make(map[int64]struct{})
+	for height := range s.execCh {
+		if height < curExecHeight {
+			Warn("height(%d) < curExecHeight(%d), old msg", height, curExecHeight)
+			continue
+		}
+		// 先放入集合中
+		aheadSet[height] = struct{}{}
+		// 循环处理已共识的区块
+		for {
+			if _, ok := aheadSet[curExecHeight]; !ok {
+				break
+			}
+			delete(aheadSet, curExecHeight)
+			blockLog, ok := s.height2blockLog[curExecHeight]
+			if !ok {
+				Error("not blockLog")
+			}
+			if !blockLog.prepared || !blockLog.committed {
+				Error("blockLog.prepared:%v, blockLog.committed:%v", blockLog.prepared, blockLog.committed)
+			}
+			for _, dupReq := range blockLog.duplicatedReqs {
+				reqArgs, _, _, _ := s.getCertOrNew(dupReq.Seq).get()
+				txSet := reqArgs.Req.TxSet
+				ycsb.ExecTxSet(txSet)
+			}
+			curExecHeight++
+		}
+	}
+}
+
 func (s *Server) Start() {
 	s.connect()
 	time.Sleep(2 * time.Second)
@@ -1252,6 +1295,9 @@ func RunServer(id int64, delayRange int64) {
 		currentTerm:       1,
 		height2blockLog:   make(map[int64]*BlockLog),
 		//localDuplicatedReqs: make([]*duplicatedReqUnit,10),
+
+		// for execute
+		execCh: make(chan int64, ChanSize),
 	}
 	server.delayReset()
 	Debug("random delay is %d ms", server.randomDelay)
