@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"math/rand"
+	"praft/zlog"
 
 	"github.com/google/uuid"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -19,7 +20,7 @@ func InitDB(dir string) {
 	var err error
 	db, err = leveldb.OpenFile(dir, nil)
 	if err != nil {
-		panic("open db failed!")
+		zlog.Error("open db dir %s failed!", dir)
 	}
 	kmap = make(map[string]struct{})
 }
@@ -45,7 +46,6 @@ type Tx struct {
 	Key  string
 	Val  string
 }
-
 
 const (
 	Wrate = 0.5
