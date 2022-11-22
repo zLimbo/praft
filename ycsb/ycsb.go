@@ -1,31 +1,94 @@
 package ycsb
 
 import (
+	"bytes"
+	"encoding/gob"
 	"fmt"
 	"math/rand"
 
 	"github.com/google/uuid"
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
-var TmpV string
+var (
+	db   *leveldb.DB
+	kmap map[string]struct{}
+)
 
-func Ycsb(writeRate float64, txNum int) {
+func init() {
+	db1, err := leveldb.OpenFile("levdb", nil)
+	if err != nil {
+		panic("open db failed!")
+	}
+	db = db1
+	kmap = make(map[string]struct{})
+}
 
-	for i := 0; i < txNum; i++ {
+func Read(key string) string {
+	val, _ := db.Get([]byte(key), nil)
+	return string(val)
+}
+
+func Write(key string, val string) {
+	db.Put([]byte(key), []byte(val), nil)
+}
+
+type TxType int
+
+const (
+	R TxType = iota
+	W
+)
+
+type Tx struct {
+	Type TxType
+	Key  string
+	Val  string
+}
+
+
+const (
+	Wrate = 0.5
+)
+
+func GenTxSet(wrate float64, num int) []byte {
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	enc.Encode(num)
+	for i := 0; i < num; i++ {
 		r := rand.Float64()
-		// fmt.Printf("== r:%f\n", r)
-		if len(keys) == 0 || r < writeRate {
+		if len(kmap) == 0 || r < wrate {
 			k := uuid.NewString()
 			v := fmt.Sprintf("%0512s", k)
-			Write(k, v)
-			keys[k] = struct{}{}
-			// fmt.Printf("write\t(%s, %s)\n", k, v)
+			enc.Encode(Tx{W, k, v})
+			kmap[k] = struct{}{}
 		} else {
-			for k := range keys {
-				TmpV = Read(k)
-				// fmt.Printf("read\t(%s, %s)\n", k, TmpV)
+			for k := range kmap {
+				enc.Encode(Tx{R, k, ""})
 				break
 			}
+		}
+	}
+	return buf.Bytes()
+}
+
+func ExecTxSet(txSet []byte) {
+	var num int
+	buf := bytes.NewBuffer(txSet)
+	dec := gob.NewDecoder(buf)
+	dec.Decode(&num)
+	// fmt.Printf("n: %d\n", num)
+	for i := 0; i < num; i++ {
+		var tx Tx
+		err := dec.Decode(&tx)
+		if err != nil {
+			panic("dec failed.")
+		}
+		// fmt.Println(tx.Type, tx.Key, tx.Val, "$")
+		if tx.Type == R {
+			Read(tx.Key)
+		} else {
+			Write(tx.Key, tx.Val)
 		}
 	}
 }

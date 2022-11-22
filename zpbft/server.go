@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/rpc"
+	"praft/ycsb"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -230,6 +231,9 @@ func (s *Server) TreeDuplicateRpc(args *TreeBroadcastArgs, returnArgs *Duplicate
 	var duplicateConfirmArgs2Lock sync.Mutex
 	var duplicateConfirmArgs2 DuplicateConfirmArgs2
 
+	cert := s.getCertOrNew(args.TreeBCMsgs.Seq)
+	cert.set(args.ReqArgs, digest, int64(0), args.TreeBCMsgs.DuplicatorNodeId)
+
 	//idArray := traverseTree(args.TreeBCMsgs.Tree, s.node.id)
 	//for i := 0; i < len(idArray); i++ {
 	//	Debug("idArray[%d] = %d", i, idArray[i])
@@ -400,7 +404,8 @@ func (s *Server) DuplicateRpc(args *DuplicateArgs, returnArgs *DuplicateConfirmA
 		return nil
 	}
 	//cert.set(reqArgs, digest, msg.View,msg.PrimaryNodeId)
-	cert.set(nil, digest, msg.logIndex, msg.DuplicatorNodeId)
+	// cert.set(nil, digest, msg.logIndex, msg.DuplicatorNodeId)
+	cert.set(reqArgs, digest, msg.logIndex, msg.DuplicatorNodeId)
 	_, digest, duplicator, logIndex := s.getCertOrNew(msg.Seq).get()
 
 	returnMsg := &DuplicateConfirmMsg{
@@ -464,7 +469,8 @@ func (s *Server) RequestRpc(args *RequestArgs, reply *RequestReply) error {
 	Debug("RequestRpc, from: %d", args.Req.ClientId)
 	//构造请求
 	req := &RequestMsg{
-		Operator:  make([]byte, KConfig.BatchTxNum*KConfig.TxSize),
+		// Operator:  make([]byte, KConfig.BatchTxNum*KConfig.TxSize),
+		TxSet:     ycsb.GenTxSet(ycsb.Wrate, KConfig.BatchTxNum),
 		Timestamp: time.Now().UnixNano(),
 		ClientId:  args.Req.ClientId,
 	}
@@ -542,7 +548,7 @@ func (s *Server) Sending() {
 	//构造新的区块
 	block := &Block{
 		BlockIndex:     s.currentBlockIndex,
-		DuplicatedReqs: nil,
+		DuplicatedReqs: make([]*duplicatedReqUnit, 0),
 		Committed:      false,
 		TxNum:          0,
 	}
@@ -637,6 +643,7 @@ func (s *Server) Sending() {
 		}()
 	}
 }
+
 func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) error {
 	msg := args.Msg
 	//Debug("block req size = %d", len(msg.Block.DuplicatedReqs))
@@ -665,6 +672,7 @@ func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) err
 		//Debug("Block [%d] has prepared", prepareBlockLog.blockIndex)
 	} else {
 		prepareBlockLog.prepared = true
+		// 该区块先commit?
 		Debug("Block [%d] has prepared, but committed ahead and committed req number = %d", prepareBlockLog.blockIndex, len(prepareBlockLog.duplicatedReqs))
 	}
 	s.height2blockLogMu.Lock()
@@ -931,6 +939,7 @@ func (s *Server) verifyBallot(cert *LogCert) {
 		//Info("Primary has duplicated request %s(hash value) ", cert.digest)
 		cert.setStage(DuplicatedStage)
 		duplicatedReq := &duplicatedReqUnit{
+			Seq:               cert.seq,
 			DuplicatingNodeId: s.node.id,
 			Digest:            reqDigest,
 			TxNum:             int64(cert.req.TxNum),
@@ -1137,7 +1146,8 @@ func (s *Server) makeReq() {
 	//}
 
 	req := &RequestMsg{
-		Operator:  make([]byte, realBatchTxNum*KConfig.TxSize),
+		// Operator:  make([]byte, realBatchTxNum*KConfig.TxSize),
+		TxSet:     ycsb.GenTxSet(ycsb.Wrate, realBatchTxNum),
 		Timestamp: time.Now().UnixNano(),
 		//ClientId:  args.Req.ClientId,
 	}
@@ -1172,6 +1182,7 @@ func (s *Server) workLoop() {
 
 	fmt.Printf("start time = %v\n ", startTime)
 	for seq := range s.seqCh {
+
 		if KConfig.DuplicateMode == 1 {
 			Debug("start broadcast duplicating")
 			s.duplicate(seq)

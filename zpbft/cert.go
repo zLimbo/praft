@@ -7,10 +7,10 @@ import (
 )
 
 type txPoolUnit struct {
-	txNum int64
-	arrivalTime time.Time
+	txNum        int64
+	arrivalTime  time.Time
 	completeTime time.Time
-	completed bool
+	completed    bool
 }
 
 type Log struct {
@@ -35,30 +35,30 @@ type CmdCert struct {
 }
 
 type LogCert struct {
-	seq              int64
-	duplicator          int64
-	req              *RequestArgs
-	digest           []byte
-	prepareConfirmed bool
-	committed        bool
-	prepares         map[int64]*PrepareArgs  // 用作prepare计数
-	commits  map[int64]*CommitArgs   // 用作commit计数
-	prepareConfirms map[int64]*PrepareConfirmArgs  // 用作prepareConfirm计数
-	duplicateConfirms map[int64]*DuplicateConfirmArgs  // 用作duplicateConfirm计数
-	commitConfirms  map[int64]*CommitConfirmArgs   // 用作commitShare计数
-	prepareQ []*PrepareArgs
-	prepareConfirmQ []*PrepareConfirmArgs
+	seq               int64
+	duplicator        int64
+	req               *RequestArgs
+	digest            []byte
+	prepareConfirmed  bool
+	committed         bool
+	prepares          map[int64]*PrepareArgs          // 用作prepare计数
+	commits           map[int64]*CommitArgs           // 用作commit计数
+	prepareConfirms   map[int64]*PrepareConfirmArgs   // 用作prepareConfirm计数
+	duplicateConfirms map[int64]*DuplicateConfirmArgs // 用作duplicateConfirm计数
+	commitConfirms    map[int64]*CommitConfirmArgs    // 用作commitShare计数
+	prepareQ          []*PrepareArgs
+	prepareConfirmQ   []*PrepareConfirmArgs
 	duplicateConfirmQ []*DuplicateConfirmArgs
-	commitQ  []*CommitArgs
-	commitConfirmQ  []*CommitConfirmArgs
-	stage    Stage
-	mu       sync.Mutex
-	prepared       sync.Mutex
-	committedMutex sync.Mutex
+	commitQ           []*CommitArgs
+	commitConfirmQ    []*CommitConfirmArgs
+	stage             Stage
+	mu                sync.Mutex
+	prepared          sync.Mutex
+	committedMutex    sync.Mutex
 	//for PRaft
-	term             int64
-	logIndex         int64
-	produceTime time.Time
+	term         int64
+	logIndex     int64
+	produceTime  time.Time
 	completeTime time.Time
 }
 
@@ -67,14 +67,14 @@ func (lc *LogCert) set(req *RequestArgs, digest []byte, logIndex int64, duplicat
 	defer lc.mu.Unlock()
 	lc.req = req
 	lc.digest = digest
-	lc.logIndex	= logIndex
+	lc.logIndex = logIndex
 	lc.duplicator = duplicator
 }
 
 func (lc *LogCert) logCommitted() {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
-	if lc.req != nil{
+	if lc.req != nil {
 		//lc.req.Req.Operator = nil
 		//lc.req = nil
 		lc.digest = nil
@@ -270,7 +270,7 @@ func (lc *LogCert) prepareBallot() int {
 //}
 
 type RequestMsg struct {
-	Operator  []byte
+	TxSet     []byte
 	Timestamp int64
 	ClientId  int64
 }
@@ -285,87 +285,87 @@ type RequestMsg struct {
 //}
 
 type SendingMsg struct {
-	PrimaryNodeId int64
+	PrimaryNodeId    int64
 	CommitBlockIndex int64
 	CommitBlockTxNum int64
-	Block *Block
+	Block            *Block
 }
 
-type SendingReturnMsg struct{
-	PrepareBlockIndex    int64
-	CommittedBlockIndex  int64
-	NewDuplicatedReqs []*duplicatedReqUnit
-	NodeId int64
+type SendingReturnMsg struct {
+	PrepareBlockIndex   int64
+	CommittedBlockIndex int64
+	NewDuplicatedReqs   []*duplicatedReqUnit
+	NodeId              int64
 }
 
 type PrepareMsg struct {
-	Seq    int64
-	Digest []byte
-	NodeId int64
+	Seq           int64
+	Digest        []byte
+	NodeId        int64
 	PrimaryNodeId int64
-	TxNum int64
-	logIndex int64
+	TxNum         int64
+	logIndex      int64
 }
 
-type duplicatedReqUnit struct{
+type duplicatedReqUnit struct {
+	Seq              int64
 	DuplicatingNodeId int64
-	TxNum int64
-	Digest []byte
-	Sign []byte
+	TxNum             int64
+	Digest            []byte
+	Sign              []byte
 }
 
-type Block struct{
+type Block struct {
 	//duplicatedReqs是所有已经被可靠广播的请求，收集自所有节点，用于排序
 	DuplicatedReqs []*duplicatedReqUnit
-	BlockIndex int64
-	Committed bool
-	TxNum int64
+	BlockIndex     int64
+	Committed      bool
+	TxNum          int64
 	//duplicatedReqsJson string
 	//所有进入第二阶段要确认的区块
 	//refBlock []int64
 }
 
-
 type DuplicateMsg struct {
-	Seq    int64
-	Digest []byte
-	NodeId int64
+	Seq              int64
+	Digest           []byte
+	NodeId           int64
 	DuplicatorNodeId int64
-	TxNum int64
-	logIndex int64
+	TxNum            int64
+	logIndex         int64
 }
 
 type PrepareConfirmMsg struct {
-	Seq    int64
-	Digest []byte
-	NodeId int64
+	Seq           int64
+	Digest        []byte
+	NodeId        int64
 	PrimaryNodeId int64
-	LogIndex int64
+	LogIndex      int64
 }
 
 type DuplicateConfirmMsg struct {
-	Seq    int64
-	Digest []byte
-	NodeId int64
+	Seq              int64
+	Digest           []byte
+	NodeId           int64
 	DuplicatorNodeId int64
-	LogIndex int64
+	LogIndex         int64
 }
 
 type CommitMsg struct {
-	Seq    int64
-	Digest []byte
-	NodeId int64
+	Seq           int64
+	Digest        []byte
+	NodeId        int64
 	PrimaryNodeId int64
-	TxNum int64
-	LogIndex int64
+	TxNum         int64
+	LogIndex      int64
 }
 
 type CommitConfirmMsg struct {
-	Seq    int64
-	Digest []byte
-	NodeId int64
+	Seq           int64
+	Digest        []byte
+	NodeId        int64
 	PrimaryNodeId int64
-	LogIndex int64
+	LogIndex      int64
 }
 
 type ReplyMsg struct {
@@ -377,8 +377,8 @@ type ReplyMsg struct {
 }
 
 type RequestArgs struct {
-	Req  *RequestMsg
-	Sign []byte
+	Req   *RequestMsg
+	Sign  []byte
 	TxNum int
 }
 
@@ -394,16 +394,16 @@ type PrepareArgs struct {
 }
 
 type SendingArgs struct {
-	Msg     *SendingMsg
-	Digest  []byte
-	Sign    []byte
+	Msg    *SendingMsg
+	Digest []byte
+	Sign   []byte
 	//Block   *Block
 }
 
 type SendingReturnArgs struct {
-	Msg     *SendingReturnMsg
-	Digest  []byte
-	Sign    []byte
+	Msg    *SendingReturnMsg
+	Digest []byte
+	Sign   []byte
 }
 
 type DuplicateArgs struct {
@@ -446,23 +446,23 @@ type CloseCliCliArgs struct {
 }
 
 type TreeBroadcastMsg struct {
-	Tree   *TreeNode
-	Seq    int64
-	Digest []byte
-	NodeId int64
+	Tree             *TreeNode
+	Seq              int64
+	Digest           []byte
+	NodeId           int64
 	DuplicatorNodeId int64
-	TxNum  int64
+	TxNum            int64
 }
 
 type TreeBroadcastArgs struct {
 	TreeBCMsgs *TreeBroadcastMsg
-	ReqArgs *RequestArgs
-	Digest []byte
-	Sign   []byte
+	ReqArgs    *RequestArgs
+	Digest     []byte
+	Sign       []byte
 }
 
 type TreeBroadcastReplyMsg struct {
-	Ok  int64
+	Ok int64
 }
 
 type TreeBroadcastReplyArgs struct {
@@ -473,14 +473,14 @@ type TreeBroadcastReplyArgs struct {
 
 type TreeBCBackMsg struct {
 	ReqDigest []byte
-	Seq int64
-	NodeId int64
+	Seq       int64
+	NodeId    int64
 }
 
 type TreeBCBackArgs struct {
-	Msg *TreeBCBackMsg
+	Msg    *TreeBCBackMsg
 	Digest []byte
-	Sign []byte
+	Sign   []byte
 }
 
 type TreeBCBackReplyArgs struct {
