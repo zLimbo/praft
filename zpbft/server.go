@@ -174,28 +174,28 @@ func (s *Server) treeDuplicate(seq int64) {
 }
 
 func (s *Server) TreeDuplicateRpc(args *TreeBroadcastArgs, returnArgs *DuplicateConfirmArgs) error {
-	idNodes := []int64{
-		14812901,
-		14812902,
-		14812903,
-		14812904,
-		14812905,
-		14814701,
-		14814702,
-		14814703,
-		14814704,
-		14814705,
-		14821701,
-		14821702,
-		14821703,
-		14821704,
-		14821705,
-	}
-	for i := 0; i < len(idNodes); i++ {
-		if s.node.id == idNodes[i] {
-			time.Sleep(2 * time.Second)
-		}
-	}
+	// idNodes := []int64{
+	// 	14812901,
+	// 	14812902,
+	// 	14812903,
+	// 	14812904,
+	// 	14812905,
+	// 	14814701,
+	// 	14814702,
+	// 	14814703,
+	// 	14814704,
+	// 	14814705,
+	// 	14821701,
+	// 	14821702,
+	// 	14821703,
+	// 	14821704,
+	// 	14821705,
+	// }
+	// for i := 0; i < len(idNodes); i++ {
+	// 	if s.node.id == idNodes[i] {
+	// 		time.Sleep(2 * time.Second)
+	// 	}
+	// }
 	msg := args.TreeBCMsgs
 	//Debug("Receive tree broadcast msg from %d", msg.NodeId)
 	node := GetNode(msg.NodeId)
@@ -363,28 +363,28 @@ func (s *Server) duplicate(seq int64) {
 }
 
 func (s *Server) DuplicateRpc(args *DuplicateArgs, returnArgs *DuplicateConfirmArgs) error {
-	idNodes := []int64{
-		14812901,
-		14812902,
-		14812903,
-		14812904,
-		14812905,
-		14814701,
-		14814702,
-		14814703,
-		14814704,
-		14814705,
-		14821701,
-		14821702,
-		14821703,
-		14821704,
-		14821705,
-	}
-	for i := 0; i < len(idNodes); i++ {
-		if s.node.id == idNodes[i] {
-			time.Sleep(2 * time.Second)
-		}
-	}
+	// idNodes := []int64{
+	// 	14812901,
+	// 	14812902,
+	// 	14812903,
+	// 	14812904,
+	// 	14812905,
+	// 	14814701,
+	// 	14814702,
+	// 	14814703,
+	// 	14814704,
+	// 	14814705,
+	// 	14821701,
+	// 	14821702,
+	// 	14821703,
+	// 	14821704,
+	// 	14821705,
+	// }
+	// for i := 0; i < len(idNodes); i++ {
+	// 	if s.node.id == idNodes[i] {
+	// 		time.Sleep(2 * time.Second)
+	// 	}
+	// }
 	msg := args.Msg
 	node := GetNode(msg.NodeId)
 	digest := Sha256Digest(msg)
@@ -777,7 +777,7 @@ func (s *Server) execute() {
 					exist = append(exist, true)
 				}
 			}
-			Info("Exec height:%v, canExec:%d, seqs:%v, exist:%v", curExecHeight, canExec, seqs, exist)
+			Info("Exec height:%d, canExec:%v, seqs:%v, exist:%v", curExecHeight, canExec, seqs, exist)
 			if !canExec {
 				time.Sleep(200 * time.Millisecond)
 				continue
@@ -787,7 +787,6 @@ func (s *Server) execute() {
 				reqArgs, _, _, _ := s.getCertOrNew(dupReq.Seq).get()
 				txSet := reqArgs.Req.TxSet
 				ycsb.ExecTxSet(txSet)
-				seqs = append(seqs, dupReq.Seq)
 			}
 			take := ToSecond(time.Since(before))
 			zlog.Info("Exec height:%d, take:%.2f", curExecHeight, take)
@@ -1025,7 +1024,7 @@ func (s *Server) verifyBallot(cert *LogCert) {
 			TxNum:             int64(cert.req.TxNum),
 			Sign:              RsaSignWithSha256(reqDigest, s.node.priKey),
 		}
-		cert.req = nil
+		// cert.req = nil
 		s.localDuplicatedMu.Lock()
 		//Debug("Broadcasted req txNum = %d", duplicatedReq.TxNum)
 		s.localDuplicatedReqs = append(s.localDuplicatedReqs, duplicatedReq)
