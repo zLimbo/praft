@@ -788,8 +788,8 @@ func (s *Server) execute() {
 				txSet := reqArgs.Req.TxSet
 				ycsb.ExecTxSet(txSet)
 			}
-			take := ToSecond(time.Since(before))
-			zlog.Info("Exec height:%d, take:%.2f", curExecHeight, take)
+			take := time.Since(before).Milliseconds()
+			zlog.Info("Exec height:%d, take:%dms", curExecHeight, take)
 			curExecHeight++
 		}
 	}
