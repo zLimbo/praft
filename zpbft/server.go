@@ -631,6 +631,12 @@ func (s *Server) Sending() {
 			commitBlockLog.commitConfirmNodes = append(commitBlockLog.commitConfirmNodes, returnArgs.Msg.NodeId)
 			prepareBlockLog.check()
 			commitBlockLog.check()
+
+			Info("height:%d, committed:%v | prepared:%v", msg.CommitBlockIndex, commitBlockLog.prepared, commitBlockLog.committed)
+			if commitBlockLog.prepared && commitBlockLog.committed {
+				s.execCh <- commitBlockLog.blockIndex
+			}
+
 			commitBlockLog.blockLogMutex.Unlock()
 			prepareBlockLog.blockLogMutex.Unlock()
 
@@ -646,8 +652,7 @@ func (s *Server) Sending() {
 			}
 		}()
 	}
-	// 执行
-	s.execCh <- msg.CommitBlockIndex
+
 }
 
 func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) error {
@@ -698,9 +703,9 @@ func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) err
 		commitBlockLog.committed = true
 		//Debug("Block [%d] has committed and committed req number = %d", commitBlockLog.blockIndex, len(commitBlockLog.duplicatedReqs))
 	}
-	Info("commit: %d | prepare: %d", msg.Block.BlockIndex, msg.CommitBlockIndex)
+	// Info("commit: %d | prepare: %d", msg.Block.BlockIndex, msg.CommitBlockIndex)
 	if ok {
-		Info("committed: %v | prepared: %v", commitBlockLog.prepared, commitBlockLog.committed)
+		Info("height:%d, committed:%v | prepared:%v", msg.CommitBlockIndex, commitBlockLog.prepared, commitBlockLog.committed)
 		if commitBlockLog.prepared && commitBlockLog.committed {
 			s.execCh <- commitBlockLog.blockIndex
 		}
@@ -751,7 +756,7 @@ func (s *Server) execute() {
 				Error("not blockLog")
 			}
 			if !blockLog.prepared || !blockLog.committed {
-				Error("blockLog.prepared:%v, blockLog.committed:%v", blockLog.prepared, blockLog.committed)
+				Error("height:%d, blockLog.prepared:%v, blockLog.committed:%v", curExecHeight, blockLog.prepared, blockLog.committed)
 			}
 			for _, dupReq := range blockLog.duplicatedReqs {
 				reqArgs, _, _, _ := s.getCertOrNew(dupReq.Seq).get()
