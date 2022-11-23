@@ -764,7 +764,7 @@ ExecLoop:
 				reqArgs, _, _, _ := s.getCertOrNew(dupReq.Seq).get()
 				if reqArgs == nil {
 					go func() {
-						time.Sleep(10 * time.Millisecond)
+						time.Sleep(200 * time.Millisecond)
 						s.execCh <- curExecHeight
 					}()
 					continue ExecLoop
