@@ -699,8 +699,11 @@ func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) err
 		//Debug("Block [%d] has committed and committed req number = %d", commitBlockLog.blockIndex, len(commitBlockLog.duplicatedReqs))
 	}
 	Info("commit: %d | prepare: %d", msg.Block.BlockIndex, msg.CommitBlockIndex)
-	if ok && commitBlockLog.prepared && commitBlockLog.committed {
-		s.execCh <- commitBlockLog.blockIndex
+	if ok {
+		Info("committed: %v | prepared: %v", commitBlockLog.prepared, commitBlockLog.committed)
+		if commitBlockLog.prepared && commitBlockLog.committed {
+			s.execCh <- commitBlockLog.blockIndex
+		}
 	}
 
 	returnMsg := &SendingReturnMsg{
@@ -724,6 +727,41 @@ func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) err
 	returnArgs.Msg = returnMsg
 	returnArgs.Sign = sign
 	return nil
+}
+
+func (s *Server) execute() {
+	curExecHeight := int64(0)
+	aheadSet := make(map[int64]struct{})
+	for height := range s.execCh {
+		Info("recv height: %d", height)
+		if height < curExecHeight {
+			Warn("height(%d) < curExecHeight(%d), old msg", height, curExecHeight)
+			continue
+		}
+		// 先放入集合中
+		aheadSet[height] = struct{}{}
+		// 循环处理已共识的区块
+		for {
+			if _, ok := aheadSet[curExecHeight]; !ok {
+				break
+			}
+			delete(aheadSet, curExecHeight)
+			blockLog, ok := s.height2blockLog[curExecHeight]
+			if !ok {
+				Error("not blockLog")
+			}
+			if !blockLog.prepared || !blockLog.committed {
+				Error("blockLog.prepared:%v, blockLog.committed:%v", blockLog.prepared, blockLog.committed)
+			}
+			for _, dupReq := range blockLog.duplicatedReqs {
+				reqArgs, _, _, _ := s.getCertOrNew(dupReq.Seq).get()
+				txSet := reqArgs.Req.TxSet
+				ycsb.ExecTxSet(txSet)
+			}
+			zlog.Info("Exec heigh: %d", curExecHeight)
+			curExecHeight++
+		}
+	}
 }
 
 //主节点发送prepare消息给从节点
@@ -1148,41 +1186,6 @@ func (s *Server) calculateTPS() {
 	}
 }
 
-func (s *Server) execute() {
-	curExecHeight := int64(0)
-	aheadSet := make(map[int64]struct{})
-	for height := range s.execCh {
-		Debug("recv height: %d", height)
-		if height < curExecHeight {
-			Warn("height(%d) < curExecHeight(%d), old msg", height, curExecHeight)
-			continue
-		}
-		// 先放入集合中
-		aheadSet[height] = struct{}{}
-		// 循环处理已共识的区块
-		for {
-			if _, ok := aheadSet[curExecHeight]; !ok {
-				break
-			}
-			delete(aheadSet, curExecHeight)
-			blockLog, ok := s.height2blockLog[curExecHeight]
-			if !ok {
-				Error("not blockLog")
-			}
-			if !blockLog.prepared || !blockLog.committed {
-				Error("blockLog.prepared:%v, blockLog.committed:%v", blockLog.prepared, blockLog.committed)
-			}
-			for _, dupReq := range blockLog.duplicatedReqs {
-				reqArgs, _, _, _ := s.getCertOrNew(dupReq.Seq).get()
-				txSet := reqArgs.Req.TxSet
-				ycsb.ExecTxSet(txSet)
-			}
-			zlog.Info("Exec heigh: %d", curExecHeight)
-			curExecHeight++
-		}
-	}
-}
-
 func (s *Server) Start() {
 	s.connect()
 	time.Sleep(2 * time.Second)
@@ -1260,6 +1263,7 @@ func RunServer(id int64, delayRange int64) {
 
 	go server.Start()
 	go server.pushTxToPool()
+	go server.execute()
 
 	rpc.Register(server)
 	rpc.HandleHTTP()
