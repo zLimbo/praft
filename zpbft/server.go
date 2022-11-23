@@ -597,10 +597,6 @@ func (s *Server) Sending() {
 	s.localDuplicatedMu.Unlock()
 	s.height2blockLogMu.Lock()
 	s.height2blockLog[newBlockLog.blockIndex] = newBlockLog
-	// z: 为0预留个位置
-	if newBlockLog.blockIndex == 1 {
-		s.height2blockLog[0] = newBlockLog
-	}
 	s.height2blockLogMu.Unlock()
 
 	//将构造的消息发送给其他节点
@@ -774,12 +770,16 @@ ExecLoop:
 					continue ExecLoop
 				}
 			}
+			before := time.Now()
+			seqs := make([]int64, 0)
 			for _, dupReq := range blockLog.duplicatedReqs {
 				reqArgs, _, _, _ := s.getCertOrNew(dupReq.Seq).get()
 				txSet := reqArgs.Req.TxSet
 				ycsb.ExecTxSet(txSet)
+				seqs = append(seqs, dupReq.Seq)
 			}
-			zlog.Info("Exec height: %d", curExecHeight)
+			take := ToSecond(time.Since(before))
+			zlog.Info("Exec height: %d, take: %.2f, seqs:%v", curExecHeight, take, seqs)
 			curExecHeight++
 		}
 	}
@@ -1281,6 +1281,15 @@ func RunServer(id int64, delayRange int64) {
 	server.localNodeSendingTxs = 0
 	server.cumulative = 0
 	server.throughput = 0
+
+	// z: 为0预留个位置
+	server.height2blockLog[0] = &BlockLog{
+		blockIndex:     0,
+		duplicatedReqs: server.localDuplicatedReqs,
+		txNum:          0,
+		prepared:       false,
+		committed:      false,
+	}
 
 	go server.Start()
 	go server.pushTxToPool()

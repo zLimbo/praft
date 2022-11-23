@@ -72,7 +72,7 @@ func GenTxSet(wrate float64, num int) []byte {
 	return buf.Bytes()
 }
 
-func ExecTxSet(txSet []byte) {
+func ExecTxSet(txSet []byte) int {
 	var num int
 	buf := bytes.NewBuffer(txSet)
 	dec := gob.NewDecoder(buf)
@@ -91,4 +91,5 @@ func ExecTxSet(txSet []byte) {
 			Write(tx.Key, tx.Val)
 		}
 	}
+	return num
 }
