@@ -737,9 +737,9 @@ func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) err
 func (s *Server) execute() {
 	curExecHeight := int64(1)
 	aheadSet := make(map[int64]struct{})
-ExecLoop:
+
 	for height := range s.execCh {
-		Info("recv height: %d", height)
+		Info("recv height:%d, execCh.len:%d, aheadSet.len:%d", height, len(s.execCh), len(aheadSet))
 		if height < curExecHeight {
 			Warn("height(%d) < curExecHeight(%d), old msg", height, curExecHeight)
 			continue
@@ -760,18 +760,25 @@ ExecLoop:
 				Error("height:%d, blockLog.prepared:%v, blockLog.committed:%v", curExecHeight, blockLog.prepared, blockLog.committed)
 			}
 			// 先检查对应的reqArgs是否存在
+			seqs := make([]int64, 0)
+			exist := make([]bool, 0)
+			canExec := true
 			for _, dupReq := range blockLog.duplicatedReqs {
+				seqs = append(seqs, dupReq.Seq)
 				reqArgs, _, _, _ := s.getCertOrNew(dupReq.Seq).get()
 				if reqArgs == nil {
-					go func() {
-						time.Sleep(200 * time.Millisecond)
-						s.execCh <- curExecHeight
-					}()
-					continue ExecLoop
+					exist = append(exist, false)
+					canExec = false
+				} else {
+					exist = append(exist, true)
 				}
 			}
+			Info("Exec height:%d, canExec:%v, seqs:%v, exist:%v", canExec, curExecHeight, seqs, exist)
+			if !canExec {
+				time.Sleep(200 * time.Millisecond)
+				continue
+			}
 			before := time.Now()
-			seqs := make([]int64, 0)
 			for _, dupReq := range blockLog.duplicatedReqs {
 				reqArgs, _, _, _ := s.getCertOrNew(dupReq.Seq).get()
 				txSet := reqArgs.Req.TxSet
@@ -779,7 +786,7 @@ ExecLoop:
 				seqs = append(seqs, dupReq.Seq)
 			}
 			take := ToSecond(time.Since(before))
-			zlog.Info("Exec height: %d, take: %.2f, seqs:%v", curExecHeight, take, seqs)
+			zlog.Info("Exec height:%d, take:%.2f", curExecHeight, take)
 			curExecHeight++
 		}
 	}
