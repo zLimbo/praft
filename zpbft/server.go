@@ -597,6 +597,10 @@ func (s *Server) Sending() {
 	s.localDuplicatedMu.Unlock()
 	s.height2blockLogMu.Lock()
 	s.height2blockLog[newBlockLog.blockIndex] = newBlockLog
+	// z: 为0预留个位置
+	if newBlockLog.blockIndex == 1 {
+		s.height2blockLog[0] = newBlockLog
+	}
 	s.height2blockLogMu.Unlock()
 
 	//将构造的消息发送给其他节点
@@ -632,7 +636,7 @@ func (s *Server) Sending() {
 			prepareBlockLog.check()
 			commitBlockLog.check()
 
-			Info("height:%d, committed:%v | prepared:%v", msg.CommitBlockIndex, commitBlockLog.prepared, commitBlockLog.committed)
+			Info("height:%d, prepared:%v | commited:%v", msg.CommitBlockIndex, commitBlockLog.prepared, commitBlockLog.committed)
 			if commitBlockLog.prepared && commitBlockLog.committed {
 				s.execCh <- commitBlockLog.blockIndex
 			}
@@ -705,7 +709,7 @@ func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) err
 	}
 	// Info("commit: %d | prepare: %d", msg.Block.BlockIndex, msg.CommitBlockIndex)
 	if ok {
-		Info("height:%d, committed:%v | prepared:%v", msg.CommitBlockIndex, commitBlockLog.prepared, commitBlockLog.committed)
+		Info("height:%d, prepared:%v | committed:%v", msg.CommitBlockIndex, commitBlockLog.prepared, commitBlockLog.committed)
 		if commitBlockLog.prepared && commitBlockLog.committed {
 			s.execCh <- commitBlockLog.blockIndex
 		}
@@ -735,8 +739,9 @@ func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) err
 }
 
 func (s *Server) execute() {
-	curExecHeight := int64(0)
+	curExecHeight := int64(1)
 	aheadSet := make(map[int64]struct{})
+ExecLoop:
 	for height := range s.execCh {
 		Info("recv height: %d", height)
 		if height < curExecHeight {
@@ -758,12 +763,23 @@ func (s *Server) execute() {
 			if !blockLog.prepared || !blockLog.committed {
 				Error("height:%d, blockLog.prepared:%v, blockLog.committed:%v", curExecHeight, blockLog.prepared, blockLog.committed)
 			}
+			// 先检查对应的reqArgs是否存在
+			for _, dupReq := range blockLog.duplicatedReqs {
+				reqArgs, _, _, _ := s.getCertOrNew(dupReq.Seq).get()
+				if reqArgs == nil {
+					go func() {
+						time.Sleep(10 * time.Millisecond)
+						s.execCh <- curExecHeight
+					}()
+					continue ExecLoop
+				}
+			}
 			for _, dupReq := range blockLog.duplicatedReqs {
 				reqArgs, _, _, _ := s.getCertOrNew(dupReq.Seq).get()
 				txSet := reqArgs.Req.TxSet
 				ycsb.ExecTxSet(txSet)
 			}
-			zlog.Info("Exec heigh: %d", curExecHeight)
+			zlog.Info("Exec height: %d", curExecHeight)
 			curExecHeight++
 		}
 	}
