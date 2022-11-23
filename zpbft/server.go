@@ -633,7 +633,8 @@ func (s *Server) Sending() {
 			commitBlockLog.check()
 
 			Info("height:%d, prepared:%v | commited:%v", msg.CommitBlockIndex, commitBlockLog.prepared, commitBlockLog.committed)
-			if commitBlockLog.prepared && commitBlockLog.committed {
+			if commitBlockLog.prepared && commitBlockLog.committed && !commitBlockLog.executed {
+				commitBlockLog.executed = true
 				s.execCh <- commitBlockLog.blockIndex
 			}
 
@@ -706,7 +707,8 @@ func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) err
 	// Info("commit: %d | prepare: %d", msg.Block.BlockIndex, msg.CommitBlockIndex)
 	if ok {
 		Info("height:%d, prepared:%v | committed:%v", msg.CommitBlockIndex, commitBlockLog.prepared, commitBlockLog.committed)
-		if commitBlockLog.prepared && commitBlockLog.committed {
+		if commitBlockLog.prepared && commitBlockLog.committed && !commitBlockLog.executed {
+			commitBlockLog.executed = true
 			s.execCh <- commitBlockLog.blockIndex
 		}
 	}
@@ -773,7 +775,7 @@ func (s *Server) execute() {
 					exist = append(exist, true)
 				}
 			}
-			Info("Exec height:%d, canExec:%v, seqs:%v, exist:%v", canExec, curExecHeight, seqs, exist)
+			Info("Exec height:%v, canExec:%d, seqs:%v, exist:%v", curExecHeight,  canExec, seqs, exist)
 			if !canExec {
 				time.Sleep(200 * time.Millisecond)
 				continue

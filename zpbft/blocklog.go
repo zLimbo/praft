@@ -11,6 +11,7 @@ type BlockLog struct{
 	commitConfirmNodes []int64
 	committed bool
 	prepared bool
+	executed bool
 	primaryNodeId int64
 }
 
