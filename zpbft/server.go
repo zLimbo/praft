@@ -1024,6 +1024,7 @@ func (s *Server) verifyBallot(cert *LogCert) {
 			TxNum:             int64(cert.req.TxNum),
 			Sign:              RsaSignWithSha256(reqDigest, s.node.priKey),
 		}
+		// z: fix bug
 		// cert.req = nil
 		s.localDuplicatedMu.Lock()
 		//Debug("Broadcasted req txNum = %d", duplicatedReq.TxNum)
