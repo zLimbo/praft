@@ -691,14 +691,14 @@ func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) err
 			committed:  true,
 		}
 		s.height2blockLogMu.Lock()
-		s.height2blockLog[msg.Block.BlockIndex] = commitBlockLog
+		s.height2blockLog[msg.CommitBlockIndex] = commitBlockLog
 		s.height2blockLogMu.Unlock()
 		Debug("Block [%d] has committed, but not prepared", commitBlockLog.blockIndex)
 	} else {
 		commitBlockLog.committed = true
 		//Debug("Block [%d] has committed and committed req number = %d", commitBlockLog.blockIndex, len(commitBlockLog.duplicatedReqs))
 	}
-
+	Info("commit: %d | prepare: %d", msg.Block.BlockIndex, msg.CommitBlockIndex)
 	if ok && commitBlockLog.prepared && commitBlockLog.committed {
 		s.execCh <- commitBlockLog.blockIndex
 	}
@@ -706,10 +706,9 @@ func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) err
 	returnMsg := &SendingReturnMsg{
 		PrepareBlockIndex:   msg.Block.BlockIndex,
 		CommittedBlockIndex: args.Msg.CommitBlockIndex,
-		NewDuplicatedReqs:   make([]*duplicatedReqUnit, 10),
+		NewDuplicatedReqs:   make([]*duplicatedReqUnit, 0),
 		NodeId:              s.node.id,
 	}
-	returnMsg.NewDuplicatedReqs = nil
 	s.localDuplicatedMu.Lock()
 	//Debug("local duplicated reqs = %d", len(s.localDuplicatedReqs))
 	for i := 0; i < len(s.localDuplicatedReqs); i++ {
