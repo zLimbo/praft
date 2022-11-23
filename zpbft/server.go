@@ -566,7 +566,7 @@ func (s *Server) Sending() {
 	}
 	Debug("block tx number = %d", block.TxNum)
 	//block.duplicatedReqsJson,_ = json.Marshal(duplicatedReqArray)
-	s.localDuplicatedReqs = nil
+
 	Debug("s.localDuplicatedReq size = %d (after clear)\n", len(s.localDuplicatedReqs))
 	s.localDuplicatedMu.Unlock()
 
@@ -598,6 +598,8 @@ func (s *Server) Sending() {
 	s.height2blockLogMu.Lock()
 	s.height2blockLog[newBlockLog.blockIndex] = newBlockLog
 	s.height2blockLogMu.Unlock()
+
+	s.localDuplicatedReqs = nil
 
 	//将构造的消息发送给其他节点
 	for id, srvCli := range s.id2srvCli {
@@ -775,7 +777,7 @@ func (s *Server) execute() {
 					exist = append(exist, true)
 				}
 			}
-			Info("Exec height:%v, canExec:%d, seqs:%v, exist:%v", curExecHeight,  canExec, seqs, exist)
+			Info("Exec height:%v, canExec:%d, seqs:%v, exist:%v", curExecHeight, canExec, seqs, exist)
 			if !canExec {
 				time.Sleep(200 * time.Millisecond)
 				continue
