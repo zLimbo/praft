@@ -783,13 +783,17 @@ func (s *Server) execute() {
 				continue
 			}
 			before := time.Now()
+			txNum := 0
+			blockSize := float64(0)
 			for _, dupReq := range blockLog.duplicatedReqs {
 				reqArgs, _, _, _ := s.getCertOrNew(dupReq.Seq).get()
 				txSet := reqArgs.Req.TxSet
-				ycsb.ExecTxSet(txSet)
+				txNum += ycsb.ExecTxSet(txSet)
+				blockSize += float64(len(txSet))
 			}
 			take := time.Since(before).Milliseconds()
-			zlog.Info("Exec height:%d, take:%dms", curExecHeight, take)
+			blockSize /= 1024.0 * 1024.0
+			zlog.Info("Exec height:%d, take:%dms, txNum:%d, blockSize:%.2f", curExecHeight, take, txNum, blockSize)
 			curExecHeight++
 		}
 	}
@@ -1164,7 +1168,7 @@ func (s *Server) makeReq() {
 
 	req := &RequestMsg{
 		// Operator:  make([]byte, realBatchTxNum*KConfig.TxSize),
-		TxSet:     ycsb.GenTxSet(ycsb.Wrate, realBatchTxNum),
+		TxSet:     ycsb.GenTxSet(ycsb.Wrate, KConfig.BatchTxNum),
 		Timestamp: time.Now().UnixNano(),
 		//ClientId:  args.Req.ClientId,
 	}
@@ -1175,7 +1179,7 @@ func (s *Server) makeReq() {
 
 	args := &RequestArgs{
 		Req:   req,
-		TxNum: realBatchTxNum,
+		TxNum: KConfig.BatchTxNum,
 		Sign:  sign,
 	}
 	seq := s.assignSeq()
