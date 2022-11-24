@@ -105,7 +105,7 @@ func InitConfig(processId int) {
 	for i := 0; i < KConfig.ProposerNum; i++ {
 		KConfig.ProposerIds[i] = KConfig.PeerIds[i]
 		//KConfig.ProposerIds[i] = GetId(KConfig.PeerIps[i % len(KConfig.PeerIps)], KConfig.PortBase+ i / len(KConfig.PeerIps)+1)
-		if KConfig.ProposerIds[i] == GetId(KConfig.LocalIp, KConfig.PortBase+1+processId) {
+		if KConfig.ProposerIds[i] == GetId(KConfig.LocalIp, KConfig.PortBase+processId) {
 			KConfig.IsProposer = true
 		}
 		zlog.Debug("proposer id = %d", KConfig.ProposerIds[i])
