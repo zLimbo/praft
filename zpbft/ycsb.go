@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"praft/zlog"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -59,6 +60,7 @@ type Tx struct {
 }
 
 func GenTxSet() []byte {
+	t0 := time.Now()
 	n := KConfig.BatchTxNum
 	m := KConfig.OpsPerTx
 	valFormat := "%0" + strconv.Itoa(KConfig.ValueSize) + "%s"
@@ -93,7 +95,10 @@ func GenTxSet() []byte {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
 	enc.Encode(txs)
-	return buf.Bytes()
+	ret := buf.Bytes()
+	take := time.Since(t0).Milliseconds()
+	zlog.Info("gen txSet take:%dms", take)
+	return ret
 }
 
 func ExecTxSet(txSet []byte) int {

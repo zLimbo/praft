@@ -747,7 +747,8 @@ func (s *Server) execute() {
 			}
 			take := time.Since(before).Milliseconds()
 			blockSize /= 1024.0 * 1024.0
-			zlog.Info("Exec height:%d, take:%dms, txNum:%d, blockSize:%.2fMB", curExecHeight, take, txNum, blockSize)
+			execTps := float64(txNum) / float64(take) * 1000.0
+			zlog.Info("Exec height:%d, take:%dms, txNum:%d, blockSize:%.2fMBm, execTps:%.2f", curExecHeight, take, txNum, blockSize, execTps)
 			curExecHeight++
 		}
 	}
