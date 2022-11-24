@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/rpc"
 	"os"
+	"praft/zlog"
 	"sync"
 	"time"
 )
@@ -40,11 +41,11 @@ func (c *Client) getCertOrNew(seq int64) *CmdCert {
 
 func (c *Client) ReplyRpc(args *ReplyArgs, reply *bool) error {
 	msg := args.Msg
-	Debug("ReplyRpc, seq: %d, from: %d", msg.Seq, msg.NodeId)
+	zlog.Debug("ReplyRpc, seq: %d, from: %d", msg.Seq, msg.NodeId)
 	*reply = false
 
 	if msg.ClientId != c.node.id {
-		Warn("ReplyMsg msg.ClientId == c.node.id")
+		zlog.Warn("ReplyMsg msg.ClientId == c.node.id")
 		return nil
 	}
 
@@ -52,7 +53,7 @@ func (c *Client) ReplyRpc(args *ReplyArgs, reply *bool) error {
 	// digest := Sha256Digest(msg)
 	// ok := RsaVerifyWithSha256(digest, args.Sign, node.pubKey)
 	// if !ok {
-	// 	Warn("ReplyMsg verify error, seq: %d, from: %d", msg.Seq, msg.NodeId)
+	// 	zlog.Warn("ReplyMsg verify error, seq: %d, from: %d", msg.Seq, msg.NodeId)
 	// 	return nil
 	// }
 	// measure
@@ -68,7 +69,7 @@ func (c *Client) ReplyRpc(args *ReplyArgs, reply *bool) error {
 	cert.replys[msg.NodeId] = args.Sign
 	replyCount := len(cert.replys)
 
-	// Debug("replyCount: %d, f+1: %d", replyCount, KConfig.FalultNum+1)
+	// zlog.Debug("replyCount: %d, f+1: %d", replyCount, KConfig.FalultNum+1)
 	if replyCount != KConfig.FaultNum+1 {
 		return nil
 	}
@@ -81,7 +82,7 @@ func (c *Client) ReplyRpc(args *ReplyArgs, reply *bool) error {
 
 	c.result = fmt.Sprintf("apply: %d seq: %d take: %.2f tps: %.0f curLa: %d avgLa: %.2f",
 		c.applyCount, msg.Seq, take, tps, latency.Milliseconds(), avgLatency)
-	Info(c.result)
+	zlog.Info(c.result)
 
 	<-c.coch
 	*reply = true
@@ -97,7 +98,7 @@ func (c *Client) connect() {
 			if c.id2srvCli[id] == nil {
 				cli, err := rpc.DialHTTP("tcp", node.addr)
 				if err != nil {
-					Warn("connect %d error: %v", node.addr, err)
+					zlog.Warn("connect %d error: %v", node.addr, err)
 					ok = false
 				} else {
 					c.id2srvCli[id] = cli
@@ -105,12 +106,12 @@ func (c *Client) connect() {
 			}
 		}
 	}
-	Info("\n== connect success ==")
+	zlog.Info("\n== connect success ==")
 
 }
 
 func (c *Client) sendReq() {
-	Info("start send req")
+	zlog.Info("start send req")
 
 	req := &RequestMsg{
 		// Operator:  make([]byte, KConfig.BatchTxNum*KConfig.TxSize),
@@ -128,7 +129,7 @@ func (c *Client) sendReq() {
 	c.start = time.Now()
 	cnt := 0
 
-	Info("clientNum: %d, reqNum: %d", c.num, KConfig.ReqNum)
+	zlog.Info("clientNum: %d, reqNum: %d", c.num, KConfig.ReqNum)
 	var wg sync.WaitGroup
 	for i := 0; i < c.num; i++ {
 		wg.Add(1)
@@ -149,10 +150,10 @@ func (c *Client) sendReq() {
 
 				err := srvCli.Call("Server.RequestRpc", args, &reply)
 				if err != nil {
-					Warn("Server.RequestRpc %d err: %v", randId)
+					zlog.Warn("Server.RequestRpc %d err: %v", randId)
 				}
 				if !reply.Ok {
-					Warn("verify error.")
+					zlog.Warn("verify error.")
 				}
 				seq := reply.Seq
 				cert := c.getCertOrNew(seq)
@@ -164,7 +165,7 @@ func (c *Client) sendReq() {
 				cnt2 := cnt
 				c.mu.Unlock()
 
-				Info("send %d req to node %d, assign seq: %d", cnt2, randId, seq)
+				zlog.Info("send %d req to node %d, assign seq: %d", cnt2, randId, seq)
 			}
 		}()
 	}
@@ -172,7 +173,7 @@ func (c *Client) sendReq() {
 
 	time.Sleep(time.Second * 3)
 	// 通知服务器关闭客户端连接
-	Info("close connect with servers")
+	zlog.Info("close connect with servers")
 	for id, srvCli := range c.id2srvCli {
 		args := CloseCliCliArgs{
 			ClientId: c.node.id,
@@ -180,11 +181,11 @@ func (c *Client) sendReq() {
 		var reply bool
 		err := srvCli.Call("Server.CloseCliCliRPC", args, &reply)
 		if err != nil {
-			Warn("Server.RequestRpc %d err: %v", id)
+			zlog.Warn("Server.RequestRpc %d err: %v", id)
 		}
 	}
 	// 输出结果
-	Info("result: \n%s", c.result)
+	zlog.Info("result: \n%s", c.result)
 
 	os.Exit(0)
 }
@@ -208,6 +209,6 @@ func RunClient(clientNum int) {
 	rpc.Register(client)
 	rpc.HandleHTTP()
 	if err := http.ListenAndServe(client.node.addr, nil); err != nil {
-		Error("client listen err: %v", err)
+		zlog.Error("client listen err: %v", err)
 	}
 }

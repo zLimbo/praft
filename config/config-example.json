@@ -1,11 +1,16 @@
 {
+    "PeerIps": [
+        "192.168.67.87",
+        "192.168.33.18",
+        "192.168.30.9",
+        "192.168.33.77"
+    ],
     "ProcessNumArray": [
         1,
         1,
         1,
         1
     ],
-    "ClientIp": "0.0.0.0",
     "IpNum": 4,
     "PortBase": 10000,
     "ProcessNum": 8,
@@ -24,5 +29,12 @@
     "ProposerNum": 1,
     "Load": 27,
     "Delay": 1,
-    "DuplicateMode": 0
+    "DuplicateMode": 0,
+    "OpsPerTx": 10,
+    "ReadRate": 0.2,
+    "WriteRate": 0.3,
+    "UpdateRate": 0.5,
+    "KeySize": 20,
+    "ValueSize": 128,
+    "Dummy": "no use"
 }

@@ -1,17 +1,18 @@
 package consistent
 
 import (
-"bufio"
-"encoding/base64"
-"math/rand"
-"os"
-"runtime"
-"sort"
-"strconv"
-"sync"
-"testing"
-"testing/quick"
-"time"
+	"bufio"
+	"encoding/base64"
+	"math/rand"
+	"os"
+	"praft/zlog"
+	"runtime"
+	"sort"
+	"strconv"
+	"sync"
+	"testing"
+	"testing/quick"
+	"time"
 )
 
 func checkNum(num, expected int, t *testing.T) {
@@ -667,7 +668,7 @@ func TestAddCollision(t *testing.T) {
 	}
 
 	if elt1 != elt2 {
-		t.Error(elt1, "and", elt2, "should be equal")
+		zlog.Error(elt1, "and", elt2, "should be equal")
 	}
 }
 
@@ -725,7 +726,7 @@ func TestConcurrentGetSet(t *testing.T) {
 			for i := 0; i < 1000; i++ {
 				a, err := x.Get("xxxxxxx")
 				if err != nil {
-					t.Error(err)
+					zlog.Error("%v", err)
 				}
 				if a != "def" && a != "vwx" {
 					t.Errorf("got %s, expected abc", a)

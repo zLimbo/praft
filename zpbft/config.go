@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"praft/consistent"
+	"praft/zlog"
 	"strconv"
 	"time"
 )
@@ -24,31 +25,39 @@ const (
 )
 
 type Config struct {
-	PeerIps          []string `json:"PeerIps"`
-	ClientIp         string   `json:"ClientIp"`
-	IpNum            int      `json:"IpNum"`
-	PortBase         int      `json:"PortBase"`
-	ProcessNum       int      `json:"ProcessNum"`
-	ReqNum           int      `json:"ReqNum"`
-	BoostNum         int      `json:"BoostNum"`
-	StartDelay       int      `json:"StartDelay"`
-	RecvBufSize      int      `json:"RecvBufSize"`
-	LogStdout        bool     `json:"LogStdout"`
-	LogLevel         LogLevel `json:"LogLevel"`
-	GoMaxProcs       int      `json:"GoMaxProcs"`
-	BatchTxNum       int      `json:"BatchTxNum"`
-	TxSize           int      `json:"TxSize"`
-	GossipNum        int      `json:"GossipNum"`
-	EnableGossip     bool     `json:"EnableGossip"`
-	ExecNum          int      `json:"ExecNum"`
-	ProposerNum      int      `json:"ProposerNum"`
-	Load             int      `json:"Load"`
-	Delay            int      `json:"Delay"`
-	Delays           []int    `json:"Delays"`
-	RotateOrNot      bool     `json:"RotateOrNot"`
-	RandomDelayOrNot bool     `json:"RandomDelayOrNot"`
-	ProcessNumArray  []int    `json:"ProcessNumArray"`
-	DuplicateMode    int      `json:"DuplicateMode"`
+	PeerIps          []string      `json:"PeerIps"`
+	IpNum            int           `json:"IpNum"`
+	PortBase         int           `json:"PortBase"`
+	ProcessNum       int           `json:"ProcessNum"`
+	ReqNum           int           `json:"ReqNum"`
+	BoostNum         int           `json:"BoostNum"`
+	StartDelay       int           `json:"StartDelay"`
+	RecvBufSize      int           `json:"RecvBufSize"`
+	LogStdout        bool          `json:"LogStdout"`
+	LogLevel         zlog.LogLevel `json:"LogLevel"`
+	GoMaxProcs       int           `json:"GoMaxProcs"`
+	BatchTxNum       int           `json:"BatchTxNum"`
+	TxSize           int           `json:"TxSize"`
+	GossipNum        int           `json:"GossipNum"`
+	EnableGossip     bool          `json:"EnableGossip"`
+	ExecNum          int           `json:"ExecNum"`
+	ProposerNum      int           `json:"ProposerNum"`
+	Load             int           `json:"Load"`
+	Delay            int           `json:"Delay"`
+	Delays           []int         `json:"Delays"`
+	RotateOrNot      bool          `json:"RotateOrNot"`
+	RandomDelayOrNot bool          `json:"RandomDelayOrNot"`
+	ProcessNumArray  []int         `json:"ProcessNumArray"`
+	DuplicateMode    int           `json:"DuplicateMode"`
+
+	// for ycsb
+	OpsPerTx   int     `json:"OpsPerTx"`
+	ReadRate   float64 `json:"ReadRate"`
+	WriteRate  float64 `json:"WriteRate"`
+	UpdateRate float64 `json:"UpdateRate"`
+	KeySize    int     `json:"KeySize"`
+	ValueSize  int     `json:"ValueSize"`
+	Rates      [NumOfOpType]float64
 
 	Id2Node     map[int64]*Node
 	ClientNode  *Node
@@ -65,39 +74,28 @@ var KConfig Config
 func InitConfig(processId int) {
 
 	// 读取 json
-	jsonBytes, err := ioutil.ReadFile(KConfigFile)
+	context, err := ioutil.ReadFile(KConfigFile)
 	if err != nil {
-		Error("read %s failed.", KConfigFile)
+		zlog.Error("read %s failed.", KConfigFile)
 	}
-	Debug("config: ", string(jsonBytes))
-	err = json.Unmarshal(jsonBytes, &KConfig)
+	err = json.Unmarshal(context, &KConfig)
 	if err != nil {
-		Error("json.Unmarshal(jsonBytes, &KConfig) err: %v", err)
-	}
-
-	jsonBytes1, err := ioutil.ReadFile(KPeersFile)
-	if err != nil {
-		Error("read %s failed.", KPeersFile)
-	}
-	err = json.Unmarshal(jsonBytes1, &KConfig.PeerIps)
-	if err != nil {
-		Error("json.Unmarshal(jsonBytes, &KConfig) err: %v", err)
+		zlog.Error("json.Unmarshal() err: %v", err)
 	}
 
-	fmt.Println("config: ", KConfig)
+	zlog.Debug("config file: ", string(context))
+	zlog.Info("config: ", KConfig)
 
 	// 配置节点ip, port, 公私钥
 	KConfig.PeerIps = KConfig.PeerIps[:KConfig.IpNum]
 	KConfig.Id2Node = make(map[int64]*Node)
-	for j := 0; j < len(KConfig.PeerIps); j++ {
-		for i := 0; i < KConfig.ProcessNumArray[j]; i++ {
-			port := KConfig.PortBase + 1 + i
-			id := GetId(KConfig.PeerIps[j], port)
-			// keyDir := KCertsDir + "/" + fmt.Sprint(id)
-			// priKey, pubKey := ReadKeyPair(keyDir)
+	for i, ip := range KConfig.PeerIps {
+		for j := 0; j < KConfig.ProcessNumArray[i]; j++ {
+			port := KConfig.PortBase + 1 + j
+			nodeId := GetId(ip, port)
 			priKey, pubKey := ReadKeyPairDefault() // 方便起见，使用同一个密钥
-			KConfig.Id2Node[id] = NewNode(KConfig.PeerIps[j], port, priKey, pubKey)
-			KConfig.PeerIds = append(KConfig.PeerIds, id)
+			KConfig.Id2Node[nodeId] = NewNode(ip, port, priKey, pubKey)
+			KConfig.PeerIds = append(KConfig.PeerIds, nodeId)
 		}
 	}
 	KConfig.LocalIp = GetLocalIp()
@@ -107,34 +105,28 @@ func InitConfig(processId int) {
 	for i := 0; i < KConfig.ProposerNum; i++ {
 		KConfig.ProposerIds[i] = KConfig.PeerIds[i]
 		//KConfig.ProposerIds[i] = GetId(KConfig.PeerIps[i % len(KConfig.PeerIps)], KConfig.PortBase+ i / len(KConfig.PeerIps)+1)
-		if KConfig.ProposerIds[i] == GetId(KConfig.LocalIp, KConfig.PortBase+processId) {
+		if KConfig.ProposerIds[i] == GetId(KConfig.LocalIp, KConfig.PortBase+1+processId) {
 			KConfig.IsProposer = true
 		}
-		Debug("proposer id = %d", KConfig.ProposerIds[i])
-		Debug("local mode is proposer : %v", KConfig.IsProposer)
+		zlog.Debug("proposer id = %d", KConfig.ProposerIds[i])
+		zlog.Debug("local mode is proposer : %v", KConfig.IsProposer)
 	}
-	Debug("Duplicate mode = %d", KConfig.DuplicateMode)
+	zlog.Debug("Duplicate mode = %d", KConfig.DuplicateMode)
 
 	// 计算容错数
 	KConfig.FaultNum = (len(KConfig.Id2Node) - 1) / 3
-	// 设置本地IP和客户端
-	// id := GetId(KConfig.ClientIp, KConfig.PortBase+1)
-	// keyDir := KCertsDir + "/" + fmt.Sprint(id)
-	// priKey, pubKey := ReadKeyPairDefault()
-	// KConfig.ClientNode = NewNode(KConfig.ClientIp, KConfig.PortBase+1, priKey, pubKey)
-}
 
-func IsClient() bool {
-	return KConfig.LocalIp == KConfig.ClientIp
+	// 计算 Rates[]
+	rateSum := KConfig.ReadRate + KConfig.WriteRate + KConfig.UpdateRate
+	KConfig.Rates[OpRead] = KConfig.ReadRate / rateSum
+	KConfig.Rates[OpWrite] = KConfig.WriteRate/rateSum + KConfig.Rates[OpRead]
+	KConfig.Rates[OpUpdate] = KConfig.UpdateRate/rateSum + KConfig.Rates[OpWrite]
 }
 
 func GetNode(id int64) *Node {
-	// if id == KConfig.ClientNode.id {
-	// 	return KConfig.ClientNode
-	// }
 	node, ok := KConfig.Id2Node[id]
 	if !ok {
-		Error("The node of this ID(%d) does not exist!", id)
+		zlog.Error("The node of this ID(%d) does not exist!", id)
 	}
 	return node
 }
@@ -184,9 +176,9 @@ func ExampleNew(virtualNodeNum int, itemNum int) {
 			log.Fatal(err)
 		}
 
-		num, err := strconv.Atoi(server[5:])
-		//Debug("%s", server)
-		//Debug("%d", num)
+		num, _ := strconv.Atoi(server[5:])
+		//zlog.Debug("%s", server)
+		//zlog.Debug("%d", num)
 		if num%7 == 1 {
 			cacheANum++
 		} else if num%7 == 2 {
@@ -225,7 +217,7 @@ func ExampleNew(virtualNodeNum int, itemNum int) {
 		//	cacheGNum++
 		//}
 	}
-	Debug("%d %d %d %d %d %d %d", cacheANum, cacheBNum, cacheCNum, cacheDNum, cacheENum, cacheFNum, cacheGNum)
+	zlog.Debug("%d %d %d %d %d %d %d", cacheANum, cacheBNum, cacheCNum, cacheDNum, cacheENum, cacheFNum, cacheGNum)
 	//users := []string{"user_mcnulty", "user_bunk", "user_omar", "user_bunny", "user_stringer","user_mcnulty1", "user_bunk2", "user_omar3", "user_bunny4", "user_stringer5"}
 	//	fmt.Printf("%s => %s\n", u, server)
 

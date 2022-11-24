@@ -4,7 +4,7 @@ import (
 	"net/rpc"
 )
 
-type TreeNode struct{
+type TreeNode struct {
 	Id       int64
 	ChildNum int64
 	Children []*TreeNode
@@ -14,9 +14,9 @@ type TreeNode struct{
 
 func makeTree(id2srvCli map[int64]*rpc.Client, childNum int64, localNodeId int64) *TreeNode {
 	//var hasChildNodeSet []*treeNode
-	var noChildNodeSet  []*TreeNode
+	var noChildNodeSet []*TreeNode
 	rootNode := TreeNode{
-		Id: localNodeId,
+		Id:       localNodeId,
 		ChildNum: 0,
 	}
 	var currentNode *TreeNode
@@ -27,61 +27,61 @@ func makeTree(id2srvCli map[int64]*rpc.Client, childNum int64, localNodeId int64
 	var idleIp []int64
 	var busyIp []int64
 	var treeIp []int64
-	for id, _ := range id2srvCli{
-		if id / 100 == 148045 {
+	for id, _ := range id2srvCli {
+		if id/100 == 148045 {
 			busyIp = append(busyIp, id)
-		}else{
+		} else {
 			idleIp = append(idleIp, id)
 		}
 	}
 	treeIp = append(idleIp, busyIp...)
 
 	//for _, nodeId := range idleIp{
-	//	Debug("idle id = %d", nodeId)
+	//	zlog.Debug("idle id = %d", nodeId)
 	//}
 	//for _, nodeId := range busyIp{
-	//	Debug("busy id = %d", nodeId)
+	//	zlog.Debug("busy id = %d", nodeId)
 	//}
 	//for i := 0; i < len(treeIp); i++ {
-	//	Debug("tree id = %d", treeIp[i])
+	//	zlog.Debug("tree id = %d", treeIp[i])
 	//}
 	//for i := 0; i < len(balanceIp); i++ {
-	//	Debug("balance id = %d", balanceIp[i])
+	//	zlog.Debug("balance id = %d", balanceIp[i])
 	//}
 
 	//for _, id := range treeIp{
-	//	Debug("id = %d", id)
+	//	zlog.Debug("id = %d", id)
 	//}
-	for _, id := range treeIp{
+	for _, id := range treeIp {
 		tN := TreeNode{
-			Id: id,
+			Id:       id,
 			ChildNum: 0,
 		}
 		if currentNode.ChildNum < childNum {
 			currentNode.Children = append(currentNode.Children, &tN)
-			//Debug("tN nodeId = %d", tN.Id)
-			currentNode.ChildNum ++
+			//zlog.Debug("tN nodeId = %d", tN.Id)
+			currentNode.ChildNum++
 			noChildNodeSet = append(noChildNodeSet, &tN)
 		} else {
 			if len(noChildNodeSet) >= 1 {
 				currentNode = noChildNodeSet[0]
-				noChildNodeSet = append(noChildNodeSet[:0], noChildNodeSet[1:]... )
+				noChildNodeSet = append(noChildNodeSet[:0], noChildNodeSet[1:]...)
 				currentNode.Children = append(currentNode.Children, &tN)
-				//Debug("tN nodeId = %d", tN.Id)
-				currentNode.ChildNum ++
+				//zlog.Debug("tN nodeId = %d", tN.Id)
+				currentNode.ChildNum++
 				noChildNodeSet = append(noChildNodeSet, &tN)
 			}
 		}
 	}
 
 	//for id, _ := range id2srvCli{
-    //    tN := TreeNode{
+	//    tN := TreeNode{
 	//		Id: id,
 	//		ChildNum: 0,
 	//	}
 	//	if currentNode.ChildNum < childNum {
 	//		currentNode.Children = append(currentNode.Children, &tN)
-	//		//Debug("tN nodeId = %d", tN.Id)
+	//		//zlog.Debug("tN nodeId = %d", tN.Id)
 	//		currentNode.ChildNum ++
 	//		noChildNodeSet = append(noChildNodeSet, &tN)
 	//	} else {
@@ -89,7 +89,7 @@ func makeTree(id2srvCli map[int64]*rpc.Client, childNum int64, localNodeId int64
 	//			currentNode = noChildNodeSet[0]
 	//			noChildNodeSet = append(noChildNodeSet[:0], noChildNodeSet[1:]... )
 	//			currentNode.Children = append(currentNode.Children, &tN)
-	//			//Debug("tN nodeId = %d", tN.Id)
+	//			//zlog.Debug("tN nodeId = %d", tN.Id)
 	//			currentNode.ChildNum ++
 	//			noChildNodeSet = append(noChildNodeSet, &tN)
 	//		}
@@ -97,6 +97,7 @@ func makeTree(id2srvCli map[int64]*rpc.Client, childNum int64, localNodeId int64
 	//}
 	return &rootNode
 }
+
 //返回nodeId对应节点的子节点的nodeId
 func traverseTree(rootNode *TreeNode, nodeId int64) []int64 {
 	var tempNode []*TreeNode

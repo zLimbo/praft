@@ -7,7 +7,6 @@ import (
 	"math/big"
 	"net/http"
 	"net/rpc"
-	"praft/ycsb"
 	"praft/zlog"
 	"sync"
 	"sync/atomic"
@@ -20,7 +19,6 @@ type Server struct {
 	logs                         []*Log
 	seq2cert                     map[int64]*LogCert
 	id2srvCli                    map[int64]*rpc.Client
-	id2cliCli                    map[int64]*rpc.Client
 	mu                           sync.Mutex
 	txPoolMu                     sync.Mutex
 	eachInstanceViewLocallyMutex sync.Mutex
@@ -80,7 +78,7 @@ func (s *Server) pushTxToPool() {
 		//randomDelay, _ := rand.Int(rand.Reader, big.NewInt(int64(KConfig.Delay)))
 		//randomDelay2 := randomDelay.Int64()
 		//time.Sleep(time.Duration(randomDelay2) * time.Millisecond)
-		//Debug("random duration = %d", randomDelay2)
+		//zlog.Debug("random duration = %d", randomDelay2)
 		s.txPoolMu.Lock()
 		s.txPool += int64(KConfig.Load / KConfig.ProposerNum)
 		s.cumulative += int64(KConfig.Load / KConfig.ProposerNum)
@@ -111,7 +109,7 @@ func (s *Server) PrimaryReceiveBackRpc(args *DuplicateConfirmArgs2, returnArgs *
 		s.duplicateMu.Unlock()
 		returnArgs.Ok = 1
 	}
-	//Debug("receive broadcast back from %d", args.Msg.NodeId)
+	//zlog.Debug("receive broadcast back from %d", args.Msg.NodeId)
 
 	return nil
 }
@@ -140,7 +138,7 @@ func (s *Server) treeDuplicate(seq int64) {
 
 	idArray := traverseTree(tree, s.node.id)
 	//for i := 0; i < len(idArray); i++ {
-	//	Debug("idArray[%d] = %d", i, idArray[i])
+	//	zlog.Debug("idArray[%d] = %d", i, idArray[i])
 	//}
 	//var duplicateConfirmArgs2Lock sync.Mutex
 	//var duplicateConfirmArgs2 DuplicateConfirmArgs2
@@ -150,13 +148,13 @@ func (s *Server) treeDuplicate(seq int64) {
 		srvCli := s.id2srvCli[id]
 		go func() { // 异步发送
 			var returnArgs DuplicateConfirmArgs
-			//Debug("Broadcast to %d", id)
+			//zlog.Debug("Broadcast to %d", id)
 			err := srvCli.Call("Server.TreeDuplicateRpc", treeBCArgs, &returnArgs)
 			if err != nil {
-				Error("Server.TreeDuplicateRpc %d error: %v", id, err)
+				zlog.Error("Server.TreeDuplicateRpc %d error: %v", id, err)
 			}
 			if &returnArgs == nil {
-				Error("Calling TreeDuplicateRpc method error")
+				zlog.Error("Calling TreeDuplicateRpc method error")
 			}
 			cert := s.getCertOrNew(returnArgs.Msg.Seq)
 			cert.pushDuplicateConfirm(&returnArgs)
@@ -197,12 +195,12 @@ func (s *Server) TreeDuplicateRpc(args *TreeBroadcastArgs, returnArgs *Duplicate
 	// 	}
 	// }
 	msg := args.TreeBCMsgs
-	//Debug("Receive tree broadcast msg from %d", msg.NodeId)
+	//zlog.Debug("Receive tree broadcast msg from %d", msg.NodeId)
 	node := GetNode(msg.NodeId)
 	digest := Sha256Digest(msg)
 	ok := RsaVerifyWithSha256(digest, args.Sign, node.pubKey)
 	if !ok {
-		Warn("treeDuplicateMsg verify error, seq: %d, from: %d", msg.Seq, msg.NodeId)
+		zlog.Warn("treeDuplicateMsg verify error, seq: %d, from: %d", msg.Seq, msg.NodeId)
 		return nil
 	}
 	nextNodes := traverseTree(msg.Tree, s.node.id)
@@ -223,13 +221,13 @@ func (s *Server) TreeDuplicateRpc(args *TreeBroadcastArgs, returnArgs *Duplicate
 	//go func(){
 	//	srvCli := s.id2srvCli[msg.Tree.Id]
 	//	var returnArgs TreeBCBackReplyArgs
-	//	Debug("Send back to primary %d", msg.Tree.Id)
+	//	zlog.Debug("Send back to primary %d", msg.Tree.Id)
 	//	err := srvCli.Call("Server.PrimaryReceiveBackRpc", duplicateConfirmArgs, &returnArgs)
 	//	if err != nil {
-	//		Error("Server.PrimaryReceiveBackRpc %d error: %v", msg.Tree.Id, err)
+	//		zlog.Error("Server.PrimaryReceiveBackRpc %d error: %v", msg.Tree.Id, err)
 	//	}
 	//	if &returnArgs == nil{
-	//		Error("Calling Server.PrimaryReceiveBackRpc method error")
+	//		zlog.Error("Calling Server.PrimaryReceiveBackRpc method error")
 	//	}
 	//}()
 	var duplicateConfirmArgs2Lock sync.Mutex
@@ -240,7 +238,7 @@ func (s *Server) TreeDuplicateRpc(args *TreeBroadcastArgs, returnArgs *Duplicate
 
 	//idArray := traverseTree(args.TreeBCMsgs.Tree, s.node.id)
 	//for i := 0; i < len(idArray); i++ {
-	//	Debug("idArray[%d] = %d", i, idArray[i])
+	//	zlog.Debug("idArray[%d] = %d", i, idArray[i])
 	//}
 	ch := make(chan int)
 	if len(nextNodes) > 0 {
@@ -266,15 +264,15 @@ func (s *Server) TreeDuplicateRpc(args *TreeBroadcastArgs, returnArgs *Duplicate
 					return
 				}
 				srvCli := s.id2srvCli[nextNodes[i]]
-				//Debug("Preparing send to %d", nextNodes[i])
-				//Debug("Continue to broadcast to %d", nextNodes[i])
+				//zlog.Debug("Preparing send to %d", nextNodes[i])
+				//zlog.Debug("Continue to broadcast to %d", nextNodes[i])
 
 				err := srvCli.Call("Server.TreeDuplicateRpc", newArgs, &returnArgs)
 				if err != nil {
-					Error("Server.TreeDuplicateRpc %d error: %v", nextNodes[i], err)
+					zlog.Error("Server.TreeDuplicateRpc %d error: %v", nextNodes[i], err)
 				}
 				if &returnArgs == nil {
-					Error("Calling TreeDuplicateRpc method error")
+					zlog.Error("Calling TreeDuplicateRpc method error")
 				}
 
 				duplicateConfirmArgs2Lock.Lock()
@@ -291,13 +289,13 @@ func (s *Server) TreeDuplicateRpc(args *TreeBroadcastArgs, returnArgs *Duplicate
 		<-ch
 		srvCli := s.id2srvCli[msg.Tree.Id]
 		var returnArgs TreeBCBackReplyArgs
-		//Debug("Send back to primary %d", msg.Tree.Id)
+		//zlog.Debug("Send back to primary %d", msg.Tree.Id)
 		err := srvCli.Call("Server.PrimaryReceiveBackRpc", duplicateConfirmArgs2, &returnArgs)
 		if err != nil {
-			Error("Server.PrimaryReceiveBackRpc %d error: %v", msg.Tree.Id, err)
+			zlog.Error("Server.PrimaryReceiveBackRpc %d error: %v", msg.Tree.Id, err)
 		}
 		if &returnArgs == nil {
-			Error("Calling Server.PrimaryReceiveBackRpc method error")
+			zlog.Error("Calling Server.PrimaryReceiveBackRpc method error")
 		}
 	}()
 
@@ -337,17 +335,17 @@ func (s *Server) duplicate(seq int64) {
 	//--------------------------------------
 
 	// 发送duplicate消息
-	//Debug("node[%d] Start duplicating request %s(hash value)\n", s.node.id, digest)
+	//zlog.Debug("node[%d] Start duplicating request %s(hash value)\n", s.node.id, digest)
 	for id, srvCli := range s.id2srvCli {
 		id1, srvCli1 := id, srvCli
 		go func() { // 异步发送
 			var returnArgs DuplicateConfirmArgs
 			err := srvCli1.Call("Server.DuplicateRpc", args, &returnArgs)
 			if err != nil {
-				Error("Server.DuplicateRpc %d error: %v", id1, err)
+				zlog.Error("Server.DuplicateRpc %d error: %v", id1, err)
 			}
 			if &returnArgs == nil {
-				Error("Calling DuplicateRpc method error")
+				zlog.Error("Calling DuplicateRpc method error")
 			}
 			cert := s.getCertOrNew(msg.Seq)
 			cert.pushDuplicateConfirm(&returnArgs)
@@ -359,7 +357,7 @@ func (s *Server) duplicate(seq int64) {
 		}()
 	}
 	//endTime := time.Now()
-	//Debug("Duplicating time duration = %d ms", endTime.Sub(startTime).Milliseconds())
+	//zlog.Debug("Duplicating time duration = %d ms", endTime.Sub(startTime).Milliseconds())
 }
 
 func (s *Server) DuplicateRpc(args *DuplicateArgs, returnArgs *DuplicateConfirmArgs) error {
@@ -390,16 +388,16 @@ func (s *Server) DuplicateRpc(args *DuplicateArgs, returnArgs *DuplicateConfirmA
 	digest := Sha256Digest(msg)
 	ok := RsaVerifyWithSha256(digest, args.Sign, node.pubKey)
 	if !ok {
-		Warn("DuplicateMsg verify error, seq: %d, from: %d", msg.Seq, msg.NodeId)
+		zlog.Warn("DuplicateMsg verify error, seq: %d, from: %d", msg.Seq, msg.NodeId)
 		return nil
 	}
-	//Debug("Received duplicate message from node[%d]", args.Msg.DuplicatorNodeId)
+	//zlog.Debug("Received duplicate message from node[%d]", args.Msg.DuplicatorNodeId)
 	reqArgs := args.ReqArgs
 	//node = GetNode(reqArgs.Req.ClientId)
 	node = GetNode(msg.NodeId)
 	digest = Sha256Digest(reqArgs.Req)
 	if !SliceEqual(digest, msg.Digest) {
-		Warn("DuplicateMsg error, req.digest != msg.Digest")
+		zlog.Warn("DuplicateMsg error, req.digest != msg.Digest")
 		return nil
 	}
 
@@ -428,11 +426,11 @@ func (s *Server) DuplicateRpc(args *DuplicateArgs, returnArgs *DuplicateConfirmA
 
 func (s *Server) delayReset() {
 	if s.randomDelayOrNot {
-		Debug("random delay set==============")
+		zlog.Debug("random delay set==============")
 		randomDelay, _ := rand.Int(rand.Reader, big.NewInt(int64(KConfig.Delay)))
 		s.randomDelay = randomDelay.Int64()
 	} else {
-		Debug("random delay not set==============")
+		zlog.Debug("random delay not set==============")
 		s.randomDelay = int64(KConfig.Delay)
 	}
 
@@ -467,49 +465,6 @@ func (s *Server) getCertOrNew(seq int64) *LogCert {
 	return cert
 }
 
-func (s *Server) RequestRpc(args *RequestArgs, reply *RequestReply) error {
-	// 放入请求队列直接返回，后续异步通知客户端
-
-	Debug("RequestRpc, from: %d", args.Req.ClientId)
-	//构造请求
-	req := &RequestMsg{
-		// Operator:  make([]byte, KConfig.BatchTxNum*KConfig.TxSize),
-		TxSet:     ycsb.GenTxSet(ycsb.Wrate, KConfig.BatchTxNum),
-		Timestamp: time.Now().UnixNano(),
-		ClientId:  args.Req.ClientId,
-	}
-	node := GetNode(args.Req.ClientId)
-	digest := Sha256Digest(req)
-	sign := RsaSignWithSha256(digest, node.priKey)
-
-	args = &RequestArgs{
-		Req:  req,
-		Sign: sign,
-	}
-	// 验证RequestMsg
-	// node := GetNode(args.Req.ClientId)
-	// digest := Sha256Digest(args.Req)
-	// ok := RsaVerifyWithSha256(digest, args.Sign, node.pubKey)
-	// if !ok {
-	// 	Warn("RequestMsg verify error, from: %d", args.Req.ClientId)
-	// 	reply.Ok = false
-	// 	return nil
-	// }
-
-	// leader 分配seq
-	seq := s.assignSeq()
-	//主节点新建logCert，设置参数，并存储在seq2cert中
-	s.getCertOrNew(seq).set(args, digest, s.view, s.node.id)
-	//向共识线程发送开始共识信号
-	s.seqCh <- seq
-
-	// 返回信息
-	reply.Seq = seq
-	reply.Ok = true
-
-	return nil
-}
-
 func (s *Server) controlSending() {
 	startTime := time.Now()
 	if s.isProposer {
@@ -517,30 +472,30 @@ func (s *Server) controlSending() {
 			time.Sleep(100 * time.Millisecond)
 			s.localDuplicatedMu.Lock()
 			if len(s.localDuplicatedReqs) != 0 {
-				Debug("System current duplicated req num = %d", len(s.localDuplicatedReqs))
+				zlog.Debug("System current duplicated req num = %d", len(s.localDuplicatedReqs))
 				s.localDuplicatedMu.Unlock()
 				s.Sending()
-				Debug("System current committed tx num = %d", s.localCommittedTxNum)
+				zlog.Debug("System current committed tx num = %d", s.localCommittedTxNum)
 				endTime := time.Now()
-				Debug("Time duration is %f, System throughput is %f", endTime.Sub(startTime).Seconds(), float64(s.localCommittedTxNum)/endTime.Sub(startTime).Seconds())
+				zlog.Debug("Time duration is %f, System throughput is %f", endTime.Sub(startTime).Seconds(), float64(s.localCommittedTxNum)/endTime.Sub(startTime).Seconds())
 				if float64(s.localCommittedTxNum)/endTime.Sub(startTime).Seconds() > s.throughput {
 					s.throughput = float64(s.localCommittedTxNum) / endTime.Sub(startTime).Seconds()
 				}
-				Debug("Maximum throughput is %f", s.throughput)
+				zlog.Debug("Maximum throughput is %f", s.throughput)
 			} else {
 				s.localDuplicatedMu.Unlock()
 				time.Sleep(1000 * time.Millisecond)
 				s.localDuplicatedMu.Lock()
-				Debug("System current duplicated req num = %d", len(s.localDuplicatedReqs))
+				zlog.Debug("System current duplicated req num = %d", len(s.localDuplicatedReqs))
 				s.localDuplicatedMu.Unlock()
 				s.Sending()
-				Debug("System current committed tx num = %d", s.localCommittedTxNum)
+				zlog.Debug("System current committed tx num = %d", s.localCommittedTxNum)
 				endTime := time.Now()
-				Debug("Time duration is %f, System throughput is %f", endTime.Sub(startTime).Seconds(), float64(s.localCommittedTxNum)/endTime.Sub(startTime).Seconds())
+				zlog.Debug("Time duration is %f, System throughput is %f", endTime.Sub(startTime).Seconds(), float64(s.localCommittedTxNum)/endTime.Sub(startTime).Seconds())
 				if float64(s.localCommittedTxNum)/endTime.Sub(startTime).Seconds() > s.throughput {
 					s.throughput = float64(s.localCommittedTxNum) / endTime.Sub(startTime).Seconds()
 				}
-				Debug("Maximum throughput is %f", s.throughput)
+				zlog.Debug("Maximum throughput is %f", s.throughput)
 			}
 		}
 	}
@@ -559,15 +514,15 @@ func (s *Server) Sending() {
 
 	//将本地可靠广播的请求放到区块中，并将本地可靠广播的请求清空
 	s.localDuplicatedMu.Lock()
-	Debug("s.localDuplicatedReq size = %d (before clear)\n", len(s.localDuplicatedReqs))
+	zlog.Debug("s.localDuplicatedReq size = %d (before clear)\n", len(s.localDuplicatedReqs))
 	for i := 0; i < len(s.localDuplicatedReqs); i++ {
 		block.DuplicatedReqs = append(block.DuplicatedReqs, s.localDuplicatedReqs[i])
 		block.TxNum = block.TxNum + s.localDuplicatedReqs[i].TxNum
 	}
-	Debug("block tx number = %d", block.TxNum)
+	zlog.Debug("block tx number = %d", block.TxNum)
 	//block.duplicatedReqsJson,_ = json.Marshal(duplicatedReqArray)
 
-	Debug("s.localDuplicatedReq size = %d (after clear)\n", len(s.localDuplicatedReqs))
+	zlog.Debug("s.localDuplicatedReq size = %d (after clear)\n", len(s.localDuplicatedReqs))
 	s.localDuplicatedMu.Unlock()
 
 	//构造发送给其他的节点的消息，包括当前区块高度和前一个区块的commit信号
@@ -608,10 +563,10 @@ func (s *Server) Sending() {
 			var returnArgs SendingReturnArgs
 			err := srvCli1.Call("Server.Receiving", args, &returnArgs)
 			if err != nil {
-				Error("Server.Receiving %d error: %v", id1, err)
+				zlog.Error("Server.Receiving %d error: %v", id1, err)
 			}
 			if &returnArgs == nil {
-				Error("Calling Receiving method error")
+				zlog.Error("Calling Receiving method error")
 			}
 			//cert := s.getCertOrNew(msg.Seq)
 			//构造新区块，并确认前一个区块
@@ -634,7 +589,7 @@ func (s *Server) Sending() {
 			prepareBlockLog.check()
 			commitBlockLog.check()
 
-			Info("height:%d, prepared:%v | commited:%v", msg.CommitBlockIndex, commitBlockLog.prepared, commitBlockLog.committed)
+			zlog.Info("height:%d, prepared:%v | commited:%v", msg.CommitBlockIndex, commitBlockLog.prepared, commitBlockLog.committed)
 			if commitBlockLog.prepared && commitBlockLog.committed && !commitBlockLog.executed {
 				commitBlockLog.executed = true
 				s.execCh <- commitBlockLog.blockIndex
@@ -645,28 +600,27 @@ func (s *Server) Sending() {
 
 			if len(returnArgs.Msg.NewDuplicatedReqs) > 0 {
 				s.localDuplicatedMu.Lock()
-				//Debug("current duplicated pool is %d, append duplicated req from %d, duplicated num = %d", len(s.localDuplicatedReqs), returnArgs.Msg.NodeId, len(returnArgs.Msg.NewDuplicatedReqs))
+				//zlog.Debug("current duplicated pool is %d, append duplicated req from %d, duplicated num = %d", len(s.localDuplicatedReqs), returnArgs.Msg.NodeId, len(returnArgs.Msg.NewDuplicatedReqs))
 				for i := 0; i < len(returnArgs.Msg.NewDuplicatedReqs); i++ {
 					s.localDuplicatedReqs = append(s.localDuplicatedReqs, returnArgs.Msg.NewDuplicatedReqs[i])
-					//Debug("received report unit tx num = %d", returnArgs.Msg.NewDuplicatedReqs[i].TxNum)
+					//zlog.Debug("received report unit tx num = %d", returnArgs.Msg.NewDuplicatedReqs[i].TxNum)
 				}
-				//Debug("Has added %d's duplicated reqs, current duplicated pool is %d", returnArgs.Msg.NodeId, len(s.localDuplicatedReqs))
+				//zlog.Debug("Has added %d's duplicated reqs, current duplicated pool is %d", returnArgs.Msg.NodeId, len(s.localDuplicatedReqs))
 				s.localDuplicatedMu.Unlock()
 			}
 		}()
 	}
-
 }
 
 func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) error {
 	msg := args.Msg
-	//Debug("block req size = %d", len(msg.Block.DuplicatedReqs))
+	//zlog.Debug("block req size = %d", len(msg.Block.DuplicatedReqs))
 
 	node := GetNode(msg.PrimaryNodeId)
 	digest := Sha256Digest(msg)
 	ok := RsaVerifyWithSha256(digest, args.Sign, node.pubKey)
 	if !ok {
-		Warn("SendingMsg verify error, block height: %d, from: %d", msg.Block.BlockIndex, msg.PrimaryNodeId)
+		zlog.Warn("SendingMsg verify error, block height: %d, from: %d", msg.Block.BlockIndex, msg.PrimaryNodeId)
 		return nil
 	}
 	s.height2blockLogMu.Lock()
@@ -683,11 +637,11 @@ func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) err
 		s.height2blockLogMu.Lock()
 		s.height2blockLog[msg.Block.BlockIndex] = prepareBlockLog
 		s.height2blockLogMu.Unlock()
-		//Debug("Block [%d] has prepared", prepareBlockLog.blockIndex)
+		//zlog.Debug("Block [%d] has prepared", prepareBlockLog.blockIndex)
 	} else {
 		prepareBlockLog.prepared = true
 		// 该区块先commit?
-		Debug("Block [%d] has prepared, but committed ahead and committed req number = %d", prepareBlockLog.blockIndex, len(prepareBlockLog.duplicatedReqs))
+		zlog.Debug("Block [%d] has prepared, but committed ahead and committed req number = %d", prepareBlockLog.blockIndex, len(prepareBlockLog.duplicatedReqs))
 	}
 	s.height2blockLogMu.Lock()
 	commitBlockLog, ok := s.height2blockLog[msg.CommitBlockIndex]
@@ -701,14 +655,14 @@ func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) err
 		s.height2blockLogMu.Lock()
 		s.height2blockLog[msg.CommitBlockIndex] = commitBlockLog
 		s.height2blockLogMu.Unlock()
-		Debug("Block [%d] has committed, but not prepared", commitBlockLog.blockIndex)
+		zlog.Debug("Block [%d] has committed, but not prepared", commitBlockLog.blockIndex)
 	} else {
 		commitBlockLog.committed = true
-		//Debug("Block [%d] has committed and committed req number = %d", commitBlockLog.blockIndex, len(commitBlockLog.duplicatedReqs))
+		//zlog.Debug("Block [%d] has committed and committed req number = %d", commitBlockLog.blockIndex, len(commitBlockLog.duplicatedReqs))
 	}
-	// Info("commit: %d | prepare: %d", msg.Block.BlockIndex, msg.CommitBlockIndex)
+	// zlog.Info("commit: %d | prepare: %d", msg.Block.BlockIndex, msg.CommitBlockIndex)
 	if ok {
-		Info("height:%d, prepared:%v | committed:%v", msg.CommitBlockIndex, commitBlockLog.prepared, commitBlockLog.committed)
+		zlog.Info("height:%d, prepared:%v | committed:%v", msg.CommitBlockIndex, commitBlockLog.prepared, commitBlockLog.committed)
 		if commitBlockLog.prepared && commitBlockLog.committed && !commitBlockLog.executed {
 			commitBlockLog.executed = true
 			s.execCh <- commitBlockLog.blockIndex
@@ -722,12 +676,12 @@ func (s *Server) Receiving(args *SendingArgs, returnArgs *SendingReturnArgs) err
 		NodeId:              s.node.id,
 	}
 	s.localDuplicatedMu.Lock()
-	//Debug("local duplicated reqs = %d", len(s.localDuplicatedReqs))
+	//zlog.Debug("local duplicated reqs = %d", len(s.localDuplicatedReqs))
 	for i := 0; i < len(s.localDuplicatedReqs); i++ {
-		Debug("report unit tx num = %d", s.localDuplicatedReqs[i].TxNum)
+		zlog.Debug("report unit tx num = %d", s.localDuplicatedReqs[i].TxNum)
 		returnMsg.NewDuplicatedReqs = append(returnMsg.NewDuplicatedReqs, s.localDuplicatedReqs[i])
 	}
-	//Debug()
+	//zlog.Debug()
 	s.localDuplicatedReqs = nil
 	s.localDuplicatedMu.Unlock()
 	digest = Sha256Digest(returnMsg)
@@ -743,9 +697,9 @@ func (s *Server) execute() {
 	aheadSet := make(map[int64]struct{})
 
 	for height := range s.execCh {
-		Info("recv height:%d, execCh.len:%d, aheadSet.len:%d", height, len(s.execCh), len(aheadSet))
+		zlog.Info("recv height:%d, execCh.len:%d, aheadSet.len:%d", height, len(s.execCh), len(aheadSet))
 		if height < curExecHeight {
-			Warn("height(%d) < curExecHeight(%d), old msg", height, curExecHeight)
+			zlog.Warn("height(%d) < curExecHeight(%d), old msg", height, curExecHeight)
 			continue
 		}
 		// 先放入集合中
@@ -758,10 +712,10 @@ func (s *Server) execute() {
 			delete(aheadSet, curExecHeight)
 			blockLog, ok := s.height2blockLog[curExecHeight]
 			if !ok {
-				Error("not blockLog")
+				zlog.Error("not blockLog")
 			}
 			if !blockLog.prepared || !blockLog.committed {
-				Error("height:%d, blockLog.prepared:%v, blockLog.committed:%v", curExecHeight, blockLog.prepared, blockLog.committed)
+				zlog.Error("height:%d, blockLog.prepared:%v, blockLog.committed:%v", curExecHeight, blockLog.prepared, blockLog.committed)
 			}
 			// 先检查对应的reqArgs是否存在
 			seqs := make([]int64, 0)
@@ -777,7 +731,7 @@ func (s *Server) execute() {
 					exist = append(exist, true)
 				}
 			}
-			Info("Exec height:%d, canExec:%v, seqs:%v, exist:%v", curExecHeight, canExec, seqs, exist)
+			zlog.Info("Exec height:%d, canExec:%v, seqs:%v, exist:%v", curExecHeight, canExec, seqs, exist)
 			if !canExec {
 				time.Sleep(200 * time.Millisecond)
 				continue
@@ -788,7 +742,7 @@ func (s *Server) execute() {
 			for _, dupReq := range blockLog.duplicatedReqs {
 				reqArgs, _, _, _ := s.getCertOrNew(dupReq.Seq).get()
 				txSet := reqArgs.Req.TxSet
-				txNum += ycsb.ExecTxSet(txSet)
+				txNum += ExecTxSet(txSet)
 				blockSize += float64(len(txSet))
 			}
 			take := time.Since(before).Milliseconds()
@@ -831,13 +785,13 @@ func (s *Server) Prepare(seq int64) {
 			var returnArgs PrepareConfirmArgs
 			err := srvCli1.Call("Server.PrepareRpc", args, &returnArgs)
 			if err != nil {
-				Error("Server.PrepareRpc %d error: %v", id1, err)
+				zlog.Error("Server.PrepareRpc %d error: %v", id1, err)
 			}
 			//returnMsg := returnArgs.Msg
-			//Debug("PrepareShareRpc, seq: %d, from: %d", msg.Seq, id1)
+			//zlog.Debug("PrepareShareRpc, seq: %d, from: %d", msg.Seq, id1)
 			// 这里先不验证，因为可能 req 消息还未收到，先存下投票信息后期验证
 			if &returnArgs == nil {
-				Error("Calling PrepareRpc method error")
+				zlog.Error("Calling PrepareRpc method error")
 			}
 			cert := s.getCertOrNew(msg.Seq)
 			cert.pushPrepareConfirm(&returnArgs)
@@ -849,7 +803,7 @@ func (s *Server) Prepare(seq int64) {
 		}()
 	}
 	//s.getCertOrNew(seq).set(nil, digest, view, primary)
-	Debug("Prepare %d ok", seq)
+	zlog.Debug("Prepare %d ok", seq)
 	//s.Prepare(seq)
 }
 
@@ -857,22 +811,22 @@ func (s *Server) Prepare(seq int64) {
 //Raft 第一阶段（从节点）
 func (s *Server) PrepareRpc(args *PrepareArgs, returnArgs *PrepareConfirmArgs) error {
 	msg := args.Msg
-	//Debug("PrePrepareRpc, seq: %d, from: %d", msg.Seq, msg.NodeId)
+	//zlog.Debug("PrePrepareRpc, seq: %d, from: %d", msg.Seq, msg.NodeId)
 	// 预设返回失败
 	//*reply = false
 	// 验证PrePrepareMsg
-	//Debug("prepare view = %d, primaryNodeId = %d",msg.View, msg.PrimaryNodeId)
+	//zlog.Debug("prepare view = %d, primaryNodeId = %d",msg.View, msg.PrimaryNodeId)
 	node := GetNode(msg.NodeId)
 	digest := Sha256Digest(msg)
 	ok := RsaVerifyWithSha256(digest, args.Sign, node.pubKey)
 	if !ok {
-		Warn("PrepareMsg verify error, seq: %d, from: %d", msg.Seq, msg.NodeId)
+		zlog.Warn("PrepareMsg verify error, seq: %d, from: %d", msg.Seq, msg.NodeId)
 		return nil
 	}
 	//如果不是proposer
 	//if !s.isProposerOrNot(int(msg.View), msg.PrimaryNodeId){
 	//	fmt.Print(KConfig.ProposerIds)
-	//	Debug("\nprimaryNode id = %d", msg.PrimaryNodeId)
+	//	zlog.Debug("\nprimaryNode id = %d", msg.PrimaryNodeId)
 	//	return nil
 	//}
 	// 验证RequestMsg
@@ -881,12 +835,12 @@ func (s *Server) PrepareRpc(args *PrepareArgs, returnArgs *PrepareConfirmArgs) e
 	node = GetNode(msg.NodeId)
 	digest = Sha256Digest(reqArgs.Req)
 	if !SliceEqual(digest, msg.Digest) {
-		Warn("PrepareMsg error, req.digest != msg.Digest")
+		zlog.Warn("PrepareMsg error, req.digest != msg.Digest")
 		return nil
 	}
 	//ok = RsaVerifyWithSha256(digest, reqArgs.Sign, node.pubKey)
 	//if !ok {
-	//	Warn("RequestMsg verify error, seq: %d, from: %d", msg.Seq, msg.NodeId)
+	//	zlog.Warn("RequestMsg verify error, seq: %d, from: %d", msg.Seq, msg.NodeId)
 	//	return nil
 	//}
 	// 设置证明
@@ -942,7 +896,7 @@ func (s *Server) Commit(seq int64) {
 			var returnArgs CommitConfirmArgs
 			err := srvCli1.Call("Server.CommitRpc", args, &returnArgs)
 			if err != nil {
-				Error("Server.CommitRpc %d error: %v", id1, err)
+				zlog.Error("Server.CommitRpc %d error: %v", id1, err)
 			}
 			cert := s.getCertOrNew(msg.Seq)
 			cert.pushCommitConfirm(&returnArgs)
@@ -960,7 +914,7 @@ func (s *Server) CommitRpc(args *PrepareArgs, returnArgs *CommitConfirmArgs) err
 	digest := Sha256Digest(msg)
 	ok := RsaVerifyWithSha256(digest, args.Sign, node.pubKey)
 	if !ok {
-		Warn("PrepareConfirmMsg verify error, seq: %d, from: %d", msg.Seq, msg.NodeId)
+		zlog.Warn("PrepareConfirmMsg verify error, seq: %d, from: %d", msg.Seq, msg.NodeId)
 		return nil
 	}
 
@@ -982,7 +936,7 @@ func (s *Server) CommitRpc(args *PrepareArgs, returnArgs *CommitConfirmArgs) err
 		cert.stage = CommitStage
 		s.currentBlockIndex++
 	}
-	Info("Backup[%d] has committed log[%d]", s.node.id, s.currentBlockIndex)
+	zlog.Info("Backup[%d] has committed log[%d]", s.node.id, s.currentBlockIndex)
 	return nil
 }
 
@@ -990,20 +944,20 @@ func (s *Server) verifyBallot(cert *LogCert) {
 	req, reqDigest, _, _ := cert.get()
 	// cmd 为空则不进行后续阶段
 	if req == nil {
-		Debug("march, cmd is nil")
+		zlog.Debug("march, cmd is nil")
 		return
 	}
 	//从duplicateQ中取出所有duplicate消息
 	argsQ := cert.popAllDuplicateConfirms()
 	for _, args := range argsQ {
 		msg := args.Msg
-		//Debug("msg nodeId = %d", msg.NodeId)
+		//zlog.Debug("msg nodeId = %d", msg.NodeId)
 		if cert.duplicateConfirmVoted(msg.NodeId) { // 已投票
 			continue
 		}
 
 		if !SliceEqual(reqDigest, msg.Digest) {
-			Warn("DuplicateMsg error, req.digest != msg.Digest")
+			zlog.Warn("DuplicateMsg error, req.digest != msg.Digest")
 			continue
 		}
 		// 验证DuplicateConfirmMsg
@@ -1011,7 +965,7 @@ func (s *Server) verifyBallot(cert *LogCert) {
 		digest := Sha256Digest(msg)
 		ok := RsaVerifyWithSha256(digest, args.Sign, node.pubKey)
 		if !ok {
-			Warn("DuplicateConfirmMsg verify error, seq: %d, from: %d", msg.Seq, msg.NodeId)
+			zlog.Warn("DuplicateConfirmMsg verify error, seq: %d, from: %d", msg.Seq, msg.NodeId)
 			continue
 		}
 		//投prepareConfirm票
@@ -1019,7 +973,7 @@ func (s *Server) verifyBallot(cert *LogCert) {
 	}
 	// f + 1 (包括自身) 后进入 commit 阶段
 	if cert.duplicateConfirmBallot() >= KConfig.FaultNum {
-		//Info("Primary has duplicated request %s(hash value) ", cert.digest)
+		//zlog.Info("Primary has duplicated request %s(hash value) ", cert.digest)
 		cert.setStage(DuplicatedStage)
 		duplicatedReq := &duplicatedReqUnit{
 			Seq:               cert.seq,
@@ -1031,23 +985,23 @@ func (s *Server) verifyBallot(cert *LogCert) {
 		// z: fix bug
 		// cert.req = nil
 		s.localDuplicatedMu.Lock()
-		//Debug("Broadcasted req txNum = %d", duplicatedReq.TxNum)
+		//zlog.Debug("Broadcasted req txNum = %d", duplicatedReq.TxNum)
 		s.localDuplicatedReqs = append(s.localDuplicatedReqs, duplicatedReq)
-		//Debug("nodeId : ", s.localDuplicatedReqs[len(s.localDuplicatedReqs)-1].duplicatingNodeId)
+		//zlog.Debug("nodeId : ", s.localDuplicatedReqs[len(s.localDuplicatedReqs)-1].duplicatingNodeId)
 
 		s.localDuplicatedMu.Unlock()
 		//go s.Commit(cert.seq)
 		//
 		cert.completeTime = time.Now()
-		Debug("Duplicating duration time = %d ms", cert.completeTime.Sub(cert.produceTime).Milliseconds())
+		zlog.Debug("Duplicating duration time = %d ms", cert.completeTime.Sub(cert.produceTime).Milliseconds())
 		s.dupTime = append(s.dupTime, cert.completeTime.Sub(cert.produceTime).Milliseconds())
-		Debug("duplicate round = %d", len(s.dupTime))
+		zlog.Debug("duplicate round = %d", len(s.dupTime))
 		if len(s.dupTime) == 100 {
 			fmt.Print(s.dupTime)
 		}
 		s.makeReq()
 		//s.delayReset()
-		//Debug("Entering a new round of duplicating ")
+		//zlog.Debug("Entering a new round of duplicating ")
 
 	}
 }
@@ -1056,18 +1010,18 @@ func (s *Server) connect() {
 	ok := false
 	for !ok {
 		time.Sleep(time.Second) // 每隔一秒进行连接
-		Info("build connect...")
+		zlog.Info("build connect...")
 		ok = true
-		Debug("nodes number = %d", len(KConfig.Id2Node))
+		zlog.Debug("nodes number = %d", len(KConfig.Id2Node))
 		for id, node := range KConfig.Id2Node {
 			if node == s.node {
 				continue
 			}
 			if s.id2srvCli[id] == nil {
-				Debug("connect to node %s", node.addr)
+				zlog.Debug("connect to node %s", node.addr)
 				cli, err := rpc.DialHTTP("tcp", node.addr)
 				if err != nil {
-					Warn("connect %s error: %v", node.addr, err)
+					zlog.Warn("connect %s error: %v", node.addr, err)
 					ok = false
 				} else {
 					s.id2srvCli[id] = cli
@@ -1075,7 +1029,7 @@ func (s *Server) connect() {
 			}
 		}
 	}
-	Info("== connect success ==")
+	zlog.Info("== connect success ==")
 }
 
 func (s *Server) isProposerOrNot(viewNum int, nodeId int64) bool {
@@ -1120,7 +1074,7 @@ func (s *Server) makeReq() {
 	//	realBatchTxNum = int(s.txPool)
 	//	s.txPool = 0
 	//
-	//	//Debug("txPool = %d", s.txPool)
+	//	//zlog.Debug("txPool = %d", s.txPool)
 	//	s.txPoolMu.Unlock()
 	//}
 
@@ -1149,7 +1103,7 @@ func (s *Server) makeReq() {
 				s.txPoolBatches[i].txNum = 0
 				s.txPoolBatches[i].completeTime = time.Now()
 				s.txPoolBatches[i].completed = true
-				Debug("This batch latency in tx pool is %d ms", s.txPoolBatches[i].completeTime.Sub(s.txPoolBatches[i].arrivalTime).Milliseconds())
+				zlog.Debug("This batch latency in tx pool is %d ms", s.txPoolBatches[i].completeTime.Sub(s.txPoolBatches[i].arrivalTime).Milliseconds())
 			}
 		}
 	}
@@ -1162,13 +1116,13 @@ func (s *Server) makeReq() {
 	//	realBatchTxNum = int(s.txPool)
 	//	s.txPool = 0
 	//
-	//	//Debug("txPool = %d", s.txPool)
+	//	//zlog.Debug("txPool = %d", s.txPool)
 	//	s.txPoolMu.Unlock()
 	//}
 
 	req := &RequestMsg{
 		// Operator:  make([]byte, realBatchTxNum*KConfig.TxSize),
-		TxSet:     ycsb.GenTxSet(ycsb.Wrate, KConfig.BatchTxNum),
+		TxSet:     GenTxSet(),
 		Timestamp: time.Now().UnixNano(),
 		//ClientId:  args.Req.ClientId,
 	}
@@ -1188,9 +1142,9 @@ func (s *Server) makeReq() {
 	//s.currentLogIndex++
 	s.getCertOrNew(seq).set(args, digest, 0, s.node.id)
 	s.getCertOrNew(seq).produceTime = time.Now()
-	//Debug("Request %s(hash value) has been created, preparing for duplicating", digest)
+	//zlog.Debug("Request %s(hash value) has been created, preparing for duplicating", digest)
 	//向共识线程发送开始共识信号
-	//Debug("***************** currentLogIndex = %d", s.currentLogIndex)
+	//zlog.Debug("***************** currentLogIndex = %d", s.currentLogIndex)
 	s.seqCh <- seq
 }
 
@@ -1205,10 +1159,10 @@ func (s *Server) workLoop() {
 	for seq := range s.seqCh {
 
 		if KConfig.DuplicateMode == 1 {
-			Debug("start broadcast duplicating")
+			zlog.Debug("start broadcast duplicating")
 			s.duplicate(seq)
 		} else {
-			Debug("start tree duplicating")
+			zlog.Debug("start tree duplicating")
 			s.treeDuplicate(seq)
 		}
 	}
@@ -1249,7 +1203,6 @@ func RunServer(id int64, delayRange int64) {
 		viewCommittedInstance:   make(map[int64]int64),
 		seq2cert:                make(map[int64]*LogCert),
 		id2srvCli:               make(map[int64]*rpc.Client),
-		id2cliCli:               make(map[int64]*rpc.Client),
 		localViewCommitted:      localView,
 		//randomDelay: randomDelay.Int64(),
 		randomDelay:         0,
@@ -1278,13 +1231,13 @@ func RunServer(id int64, delayRange int64) {
 		execCh: make(chan int64, ChanSize),
 	}
 	server.delayReset()
-	Debug("random delay is %d ms", server.randomDelay)
+	zlog.Debug("random delay is %d ms", server.randomDelay)
 	for _, nodeId := range KConfig.PeerIds {
 		server.eachInstanceViewLocally[nodeId] = 0
 	}
 	for i := 0; i < KConfig.ProposerNum; i++ {
 		server.proposers[i] = KConfig.ProposerIds[i]
-		//Debug("proposer id = %d",server.proposers[i])
+		//zlog.Debug("proposer id = %d",server.proposers[i])
 	}
 	// 每个分配序号后缀为节点id(8位)
 	server.seqInc = server.node.id

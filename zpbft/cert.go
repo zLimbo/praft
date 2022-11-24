@@ -308,7 +308,7 @@ type PrepareMsg struct {
 }
 
 type duplicatedReqUnit struct {
-	Seq              int64
+	Seq               int64
 	DuplicatingNodeId int64
 	TxNum             int64
 	Digest            []byte
