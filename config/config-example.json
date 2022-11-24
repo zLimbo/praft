@@ -21,7 +21,7 @@
     "LogStdout": true,
     "LogLevel": 0,
     "GoMaxProcs": 4,
-    "BatchTxNum": 10000,
+    "BatchTxNum": 2000,
     "TxSize": 500,
     "GossipNum": 3,
     "EnableGossip": false,
@@ -30,11 +30,11 @@
     "Load": 27,
     "Delay": 1,
     "DuplicateMode": 0,
-    "OpsPerTx": 10,
+    "OpsPerTx": 20,
     "ReadRate": 0.2,
     "WriteRate": 0.3,
     "UpdateRate": 0.5,
     "KeySize": 20,
-    "ValueSize": 128,
+    "ValueSize": 64,
     "Dummy": "no use"
 }
